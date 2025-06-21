@@ -1,12 +1,11 @@
 {
   "Version": 1,
-  "Hash": "eW3zvEEswUno/9EuJlYwzErpJPXCzo86iMuaasnp2BE=",
+  "Hash": "b/yne1WJDfyWFo1gch1vyxukhM7+lsCi1OCXZ0tYeCU=",
   "Source": "dartford_api",
   "BasePath": "_content/dartford_api",
   "Mode": "Default",
   "ManifestType": "Build",
   "ReferencedProjectsConfiguration": [],
   "DiscoveryPatterns": [],
-  "Assets": [],
-  "Endpoints": []
+  "Assets": []
 }

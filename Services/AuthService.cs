@@ -18,12 +18,12 @@ namespace dartford_api.Services
             _configuration = configuration;
             _userService = userService;
         }
-        public string GenerateJWTToken(LoginModel user, int userType)
+        public string GenerateJwtToken(User user)
         {
             var claims = new List<Claim> {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
                 new Claim(ClaimTypes.Email, user.Email),
-                new Claim("UserType", userType.ToString())
+                new Claim("UserType", user.UserType.ToString())
             };
             var jwtToken = new JwtSecurityToken(
                 claims: claims,

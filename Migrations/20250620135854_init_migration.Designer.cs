@@ -12,8 +12,8 @@ using dartford_api.MyDBContext;
 namespace dartford_api.Migrations
 {
     [DbContext(typeof(DartfordDBContext))]
-    [Migration("20250618144435_initial_migration")]
-    partial class initial_migration
+    [Migration("20250620135854_init_migration")]
+    partial class init_migration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -41,37 +41,32 @@ namespace dartford_api.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("FacebookFollower")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("FacebookFollower")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Instagram")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("InstagramFollower")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("InstagramFollower")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TikTok")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TikTokFollower")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("TikTokFollower")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Twitter")
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("TwitterFollower")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("TwitterFollower")
+                        .HasColumnType("integer");
 
-                    b.Property<string>("UserId")
-                        .IsRequired()
-                        .HasColumnType("text");
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

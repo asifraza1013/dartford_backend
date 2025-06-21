@@ -1,6 +1,7 @@
 ﻿using dartford_api.Interfaces;
 using dartford_api.Models;
 using dartford_api.Services;
+using dartford_api.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
@@ -25,7 +26,7 @@ namespace dartford_api.Controllers
         {
             var user = await _userService.GetUserById(id);
             if (user == null)
-                return NotFound("User not found");
+                return StatusCode(400, new { message = Message.USER_NOT_FOUND });
 
             return Ok(user);
         }
@@ -33,15 +34,11 @@ namespace dartford_api.Controllers
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginModel login)
         {
-            var user = await _userService.ValidateUserAsync(login.Email, login.Password);
+            User? user = await _userService.ValidateUserAsync(login.Email, login.Password);
             if (user == null)
-                return Unauthorized("Invalid email or password");
+                return StatusCode(401, new { message = Message.INVALID_EMAIL_PASSWORD });
 
-            var token = _authService.GenerateJWTToken(new LoginModel
-            {
-                Id = user.Id,
-                Email = user.Email
-            }, user.UserType);
+            var token = _authService.GenerateJwtToken(user);
 
             return Ok(new
             {
@@ -61,8 +58,9 @@ namespace dartford_api.Controllers
         {
             var existing = await _userService.GetByEmailAsync(user.Email);
             if (existing != null)
-                return BadRequest("Email already registered.");
+                return StatusCode(401, new { message = Message.EMAIL_ALREADY_REGISTERED });
 
+            user.Status = (int)Status.ACTIVE;
             var result = await _authService.RegisterAsync(user);
             return Ok(result);
         }

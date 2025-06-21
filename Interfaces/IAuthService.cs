@@ -3,7 +3,7 @@ namespace dartford_api.Interfaces
 {
     public interface IAuthService
     {
-        string GenerateJWTToken(LoginModel user, int userType);
+        string GenerateJwtToken(User user);
         Task<User> RegisterAsync(User user);
     }
 }

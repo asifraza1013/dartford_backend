@@ -1,9 +1,13 @@
-﻿namespace dartford_api.Models
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace dartford_api.Models
 {
     public class LoginModel
     {
-        public int Id { get; set; }
+        [Required]
+        [EmailAddress]
         public string Email { get; set; }
+        [Required]
         public string Password { get; set; }
     }
 }

@@ -8,7 +8,7 @@ namespace dartford_api.MyDBContext
         public DbSet<User> Users { get; set; }
         public DbSet<Influencer> Influencers { get; set; }
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        => optionsBuilder.UseNpgsql("Host=localhost;Database=dartford_2;Username=postgres;Password=pass123");
+        => optionsBuilder.UseNpgsql("Host=localhost;Database=dartford;Username=postgres;Password=pass123");
 
     }
 }

@@ -27,19 +27,11 @@ namespace dartford_api.Services
             return await _influencerRepository.Create(influencer);
         }
 
-        public async Task<bool> UpdateInfluencer(int id, Influencer influencer)
+        public async Task<bool> UpdateInfluencer(int userId, Influencer influencer)
         {
-            var existingInfluencer = await _influencerRepository.GetById(id);
+            var existingInfluencer = await _influencerRepository.GetByUserId(userId);
             if (existingInfluencer == null) return false;
-
-            existingInfluencer.Twitter = influencer.Twitter ?? existingInfluencer.Twitter;
-            existingInfluencer.Instagram = influencer.Instagram ?? existingInfluencer.Instagram;
-            existingInfluencer.Facebook = influencer.Facebook ?? existingInfluencer.Facebook;
-            existingInfluencer.TikTok = influencer.TikTok ?? existingInfluencer.TikTok;
-            existingInfluencer.TwitterFollower = influencer.TwitterFollower ?? existingInfluencer.TwitterFollower;
-            existingInfluencer.InstagramFollower = influencer.InstagramFollower ?? existingInfluencer.InstagramFollower;
-            existingInfluencer.FacebookFollower = influencer.FacebookFollower ?? existingInfluencer.FacebookFollower;
-            existingInfluencer.TikTokFollower = influencer.TikTokFollower ?? existingInfluencer.TikTokFollower;
+            
             existingInfluencer.Bio = influencer.Bio ?? existingInfluencer.Bio;
 
             await _influencerRepository.Update(existingInfluencer);
@@ -58,6 +50,5 @@ namespace dartford_api.Services
         {
             return await _influencerRepository.GetByUserId(userId);
         }
-
     }
 }

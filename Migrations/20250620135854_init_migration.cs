@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace dartford_api.Migrations
 {
     /// <inheritdoc />
-    public partial class initial_migration : Migration
+    public partial class init_migration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -18,15 +18,15 @@ namespace dartford_api.Migrations
                 {
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    UserId = table.Column<string>(type: "text", nullable: false),
+                    UserId = table.Column<int>(type: "integer", nullable: false),
                     Twitter = table.Column<string>(type: "text", nullable: false),
                     Instagram = table.Column<string>(type: "text", nullable: false),
                     Facebook = table.Column<string>(type: "text", nullable: false),
                     TikTok = table.Column<string>(type: "text", nullable: false),
-                    TwitterFollower = table.Column<string>(type: "text", nullable: false),
-                    InstagramFollower = table.Column<string>(type: "text", nullable: false),
-                    FacebookFollower = table.Column<string>(type: "text", nullable: false),
-                    TikTokFollower = table.Column<string>(type: "text", nullable: false),
+                    TwitterFollower = table.Column<int>(type: "integer", nullable: false),
+                    InstagramFollower = table.Column<int>(type: "integer", nullable: false),
+                    FacebookFollower = table.Column<int>(type: "integer", nullable: false),
+                    TikTokFollower = table.Column<int>(type: "integer", nullable: false),
                     Bio = table.Column<string>(type: "text", nullable: false)
                 },
                 constraints: table =>

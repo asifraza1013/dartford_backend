@@ -7,7 +7,7 @@ namespace dartford_api.Interfaces
         Task<IEnumerable<Influencer>> GetAllInfluencers();
         Task<Influencer?> GetInfluencerById(int id);
         Task<Influencer> CreateInfluencer(Influencer influencer);
-        Task<bool> UpdateInfluencer(int id, Influencer influencer);
+        Task<bool> UpdateInfluencer(int userId, Influencer influencer);
         Task<bool> DeleteInfluencer(int id);
         Task<Influencer?> GetInfluencerByUserId(int userId);
 

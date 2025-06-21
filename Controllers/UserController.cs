@@ -1,6 +1,7 @@
 ﻿using dartford_api.Interfaces;
 using dartford_api.Models;
 using dartford_api.Services;
+using dartford_api.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,8 +22,6 @@ namespace dartford_api.Controllers
         public async Task<IActionResult> GetAllUsers()
         {
             var users = await _userService.GetAllUsers();
-            if(users == null)
-                return NotFound();
             return Ok(users);
         }
 
@@ -31,7 +30,7 @@ namespace dartford_api.Controllers
         {
             var user = await _userService.GetUserById(id);
             if (user == null)
-                return NotFound("User not found");
+                return StatusCode(400, new { message = Message.USER_NOT_FOUND });
 
             return Ok(user);
         }
@@ -40,7 +39,7 @@ namespace dartford_api.Controllers
         public async Task<IActionResult> CreateUser([FromBody] User user)
         {
             var createdUser = await _userService.CreateUser(user);
-            return CreatedAtAction(nameof(GetUserById), new { id = createdUser.Id }, createdUser);
+            return StatusCode(200,  new { message = Message.USER_CREATED_SUCCESSFULLY, user = createdUser});
         }
 
         [HttpPut("updateUser/{id}")]
@@ -48,7 +47,7 @@ namespace dartford_api.Controllers
         {
             var updated = await _userService.UpdateUser(id, user);
             if (!updated)
-                return NotFound("User not found");
+                return StatusCode(500,  new { message = Message.USER_UPDATE_FAILED });
 
             return NoContent();
         }
@@ -58,7 +57,7 @@ namespace dartford_api.Controllers
         {
             var deleted = await _userService.DeleteUser(id);
             if (!deleted)
-                return NotFound("User not found");
+                return StatusCode(500, new { message = Message.USER_DELETE_FAILED });
 
             return NoContent();
         }

@@ -70,6 +70,43 @@ namespace dartford_api.Migrations
                     b.ToTable("Influencers");
                 });
 
+            modelBuilder.Entity("dartford_api.Models.Plan", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Currency")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Interval")
+                        .HasColumnType("text");
+
+                    b.Property<int>("NumberOfMonths")
+                        .HasColumnType("integer");
+
+                    b.PrimitiveCollection<List<string>>("PlanDetails")
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("PlanName")
+                        .HasColumnType("text");
+
+                    b.Property<float>("Price")
+                        .HasColumnType("real");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Plans");
+                });
+
             modelBuilder.Entity("dartford_api.Models.User", b =>
                 {
                     b.Property<int>("Id")

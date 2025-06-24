@@ -27,7 +27,8 @@ namespace dartford_api
             builder.Services.AddTransient<IAuthService, AuthService>();
             builder.Services.AddTransient<IInfluencerRepository, InfluencerRepository>();
             builder.Services.AddTransient<IInfluencerService, InfluencerService>();
-
+            builder.Services.AddTransient<IPlanRepository, PlanRepository>();
+            builder.Services.AddTransient<IPlanService, PlanService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

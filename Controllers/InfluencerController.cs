@@ -1,6 +1,8 @@
-﻿using dartford_api.Interfaces;
+﻿using System.Security.Claims;
+using dartford_api.Interfaces;
 using dartford_api.Models;
 using dartford_api.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -34,8 +36,15 @@ namespace dartford_api.Controllers
         }
 
         [HttpPost("createNewInfluencer")]
+        [Authorize]
         public async Task<IActionResult> CreateInfluencer([FromBody] Influencer influencer)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+            influencer.UserId = userId;
             var created = await _influencerService.CreateInfluencer(influencer);
             return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});
         }

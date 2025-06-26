@@ -46,4 +46,11 @@ public class PlanRepository : IPlanRepository
             await _context.SaveChangesAsync();
         }
     }
+    public async Task<IEnumerable<Plan>> GetPlansByUserId(int userId)
+    {
+        return await _context.Plans
+            .Where(p => p.UserId == userId)
+            .ToListAsync();
+    }
+
 }

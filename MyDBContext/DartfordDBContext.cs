@@ -7,8 +7,6 @@ namespace dartford_api.MyDBContext
     {
         public DbSet<User> Users { get; set; }
         public DbSet<Influencer> Influencers { get; set; } 
-        public DbSet<Plan> Plans { get; set; } 
-        public DbSet<Campaign> Campaigns { get; set; }
         protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
             => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=dartford");
     }

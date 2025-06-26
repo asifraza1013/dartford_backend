@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using dartford_api.Interfaces;
 using dartford_api.Models;
 using dartford_api.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -35,8 +37,15 @@ namespace dartford_api.Controllers
         }
 
         [HttpPost("createNewPlan")]
+        [Authorize]
         public async Task<IActionResult> CreatePlan([FromBody] Plan plan)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+            plan.UserId = userId;
             var created = await _planService.CreatePlan(plan);
             return StatusCode(200, new { message = Message.PLAN_CREATED_SUCCESSFULLY, plan = created });
         }
@@ -60,5 +69,19 @@ namespace dartford_api.Controllers
 
             return NoContent();
         }
+        [HttpGet("getInfluencerPlans")]
+        [Authorize]
+        public async Task<IActionResult> GetInfluencerPlans()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+            var plans = await _planService.GetPlansByUserId(userId);
+
+            return Ok(plans);
+        }
+
     }
 }

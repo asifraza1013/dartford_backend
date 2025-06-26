@@ -21,7 +21,10 @@ namespace dartford_api
             builder.Services.AddControllers();
 
             builder.Services.AddDbContext<DartfordDBContext>(options =>
-                options.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
+            options.UseNpgsql(
+                builder.Configuration.GetConnectionString("Default") 
+                ?? "Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford;Username=root;Password=bPyGMMHTWQ457GcGFYHbJRUSTA2Mgw4M"));
+
 
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();

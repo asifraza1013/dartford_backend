@@ -1,3 +1,64 @@
 .vs/
 obj/
 bin/
+
+## Build results
+out/
+Generated_Code/
+
+## Rider IDE
+.idea/
+*.sln.iml
+
+## Visual Studio
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## VS Code
+.vscode/
+
+## NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+*.nuget.props
+*.nuget.targets
+
+## ASP.NET Core secrets
+**/secrets.json
+
+## User-specific files
+*.swp
+*.tmp
+*.log
+
+## dotnet build info
+*.dbmdl
+*.bak
+*.orig
+
+## Test results
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+*.testresults
+
+## Others
+node_modules/
+npm-debug.log
+.env
+.env.*
+
+# Logs
+logs/
+
+# JetBrains Rider
+*.DotSettings.user
+
+# Ignore auto-generated editor config from SDK
+*.editorconfig

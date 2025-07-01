@@ -69,7 +69,7 @@ namespace dartford_api.Controllers
 
             return NoContent();
         }
-        [HttpGet("getInfluencerPlans")]
+        [HttpGet("getCurrentInfluencerPlans")]
         [Authorize]
         public async Task<IActionResult> GetInfluencerPlans()
         {
@@ -82,6 +82,17 @@ namespace dartford_api.Controllers
 
             return Ok(plans);
         }
+        [HttpGet("getPlansByInfluencerUserId/{userId}")]
+        public async Task<IActionResult> GetPlansByInfluencerUserId(int userId)
+        {
+            var plans = await _planService.GetPlansByUserId(userId);
+
+            if (!plans.Any())
+                return NotFound(new { message = "No plans found for this influencer." });
+
+            return Ok(plans);
+        }
+
 
     }
 }

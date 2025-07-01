@@ -7151,19 +7151,19 @@
     ]
   },
   "packageFolders": {
-    "/Users/desktop/.nuget/packages/": {}
+    "/Users/macbook/.nuget/packages/": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/desktop/RiderProjects/dartford_backend/dartford_api.csproj",
+      "projectUniqueName": "/Users/macbook/RiderProjects/dartford_backend/dartford_api.csproj",
       "projectName": "dartford_api",
-      "projectPath": "/Users/desktop/RiderProjects/dartford_backend/dartford_api.csproj",
-      "packagesPath": "/Users/desktop/.nuget/packages/",
-      "outputPath": "/Users/desktop/RiderProjects/dartford_backend/obj/",
+      "projectPath": "/Users/macbook/RiderProjects/dartford_backend/dartford_api.csproj",
+      "packagesPath": "/Users/macbook/.nuget/packages/",
+      "outputPath": "/Users/macbook/RiderProjects/dartford_backend/obj/",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/desktop/.nuget/NuGet/NuGet.Config"
+        "/Users/macbook/.nuget/NuGet/NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"

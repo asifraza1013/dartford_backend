@@ -13,7 +13,11 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
+<<<<<<< HEAD
 [assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8204d7836c456e3c4ecd5dd303b16ad2f4ac53c9")]
+=======
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3601db4a4573643d54a7f8c94c5cd1b0af865f95")]
+>>>>>>> new-branch
 [assembly: System.Reflection.AssemblyProductAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

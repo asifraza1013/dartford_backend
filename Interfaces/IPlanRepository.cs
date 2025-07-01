@@ -9,4 +9,6 @@ public interface IPlanRepository
     Task<Plan> Create(Plan plan);
     Task Update(Plan plan);
     Task Delete(int id);
+    Task<IEnumerable<Plan>> GetPlansByUserId(int userId);
+
 }

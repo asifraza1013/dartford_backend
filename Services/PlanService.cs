@@ -52,4 +52,9 @@ public class PlanService : IPlanService
         await _planRepository.Delete(id);
         return true;
     }
+    public async Task<IEnumerable<Plan>> GetPlansByUserId(int userId)
+    {
+        return await _planRepository.GetPlansByUserId(userId);
+    }
+
 }

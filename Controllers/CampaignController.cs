@@ -2,7 +2,6 @@ using System.Security.Claims;
 using dartford_api.Interfaces;
 using dartford_api.Models;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace dartford_api.Controllers

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7603379b1ee73a1df69f63b40c7e6d894b9e9562")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+3601db4a4573643d54a7f8c94c5cd1b0af865f95")]
 [assembly: System.Reflection.AssemblyProductAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("dartford_api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

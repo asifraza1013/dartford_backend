@@ -1,7 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace dartford_api.Models;
+namespace inflan_api.Models;
 
 public class Plan
 {

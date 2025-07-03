@@ -1,4 +1,4 @@
-namespace dartford_api.Utils;
+namespace inflan_api.Utils;
 
 public enum CampaignStatus
 {

@@ -1,5 +1,6 @@
-﻿using dartford_api.Models;
-namespace dartford_api.Interfaces
+﻿using inflan_api.Models;
+
+namespace inflan_api.Interfaces
 {
     public interface IInfluencerRepository
     {

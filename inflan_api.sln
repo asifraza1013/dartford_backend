@@ -1,9 +1,9 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.13.35913.81 d17.13
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "dartford_api", "dartford_api.csproj", "{4213F30A-63C6-4D2B-B493-4E5BB78C3FAF}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "inflan_api", "inflan_api.csproj", "{4213F30A-63C6-4D2B-B493-4E5BB78C3FAF}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

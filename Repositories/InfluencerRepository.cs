@@ -1,17 +1,17 @@
-﻿using dartford_api.Interfaces;
-using dartford_api.Models;
-using dartford_api.MyDBContext;
+﻿using inflan_api.Interfaces;
+using inflan_api.Models;
+using inflan_api.MyDBContext;
 using Microsoft.EntityFrameworkCore;
 
-namespace dartford_api.Repositories
+namespace inflan_api.Repositories
 {
     public class InfluencerRepository : IInfluencerRepository
     {
-        private readonly DartfordDBContext _context;
+        private readonly InflanDBContext _context;
 
         public InfluencerRepository()
         {
-            _context = new DartfordDBContext();
+            _context = new InflanDBContext();
         }
 
         public async Task<IEnumerable<Influencer>> GetAll()

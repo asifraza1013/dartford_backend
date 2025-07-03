@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.Security;
 
-namespace dartford_api.Models
+namespace inflan_api.Models
 {
     public class User
     {

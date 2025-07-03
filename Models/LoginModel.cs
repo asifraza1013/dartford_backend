@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace dartford_api.Models
+namespace inflan_api.Models
 {
     public class LoginModel
     {

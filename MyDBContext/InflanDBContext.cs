@@ -1,0 +1,57 @@
+﻿using inflan_api.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace inflan_api.MyDBContext
+{
+    public class InflanDBContext : DbContext
+    {
+        public DbSet<User> Users { get; set; }
+        public DbSet<Influencer> Influencers { get; set; }
+        public DbSet<Plan> Plans { get; set; }
+        public DbSet<Campaign> Campaigns { get; set; }
+        // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
+        //     => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=dartford");
+        protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
+            => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // Campaign → Plan
+            modelBuilder.Entity<Campaign>()
+                .HasOne<Plan>()
+                .WithMany()
+                .HasForeignKey(c => c.PlanId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Campaign → User (Brand)
+            modelBuilder.Entity<Campaign>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(c => c.BrandId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Campaign → User (Influencer)
+            modelBuilder.Entity<Campaign>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(c => c.InfluencerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Plan → User
+            modelBuilder.Entity<Plan>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Influencer → User
+            modelBuilder.Entity<Influencer>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(i => i.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        }
+
+    }
+}

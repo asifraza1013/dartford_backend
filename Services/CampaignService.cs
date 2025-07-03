@@ -1,8 +1,8 @@
-using dartford_api.Interfaces;
-using dartford_api.Models;
-using dartford_api.Utils;
+using inflan_api.Interfaces;
+using inflan_api.Models;
+using inflan_api.Utils;
 
-namespace dartford_api.Services;
+namespace inflan_api.Services;
 
 public class CampaignService : ICampaignService
 {

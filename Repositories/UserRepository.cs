@@ -1,17 +1,17 @@
-﻿using dartford_api.Interfaces;
-using dartford_api.Models;
-using Microsoft.EntityFrameworkCore;
-using dartford_api.MyDBContext;
+﻿using Microsoft.EntityFrameworkCore;
+using inflan_api.Interfaces;
+using inflan_api.Models;
+using inflan_api.MyDBContext;
 
-namespace dartford_api.Repositories
+namespace inflan_api.Repositories
 {
     public class UserRepository : IUserRepository
     {
-        private readonly DartfordDBContext _context;
+        private readonly InflanDBContext _context;
 
         public UserRepository()
         {
-            _context = new DartfordDBContext();
+            _context = new InflanDBContext();
         }
 
         public async Task<IEnumerable<User>> GetAll()

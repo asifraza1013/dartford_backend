@@ -6,7 +6,7 @@ WORKDIR /src
 COPY . .
 
 # Restore and publish
-RUN dotnet publish dartford_api.csproj -c Release -o /app/out
+RUN dotnet publish inflan_api.csproj -c Release -o /app/out
 
 # --- Runtime stage ---
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
@@ -20,4 +20,4 @@ ENV ASPNETCORE_URLS=http://+:10000
 EXPOSE 10000
 
 # Run your app
-ENTRYPOINT ["dotnet", "dartford_api.dll"]
+ENTRYPOINT ["dotnet", "inflan_api.dll"]

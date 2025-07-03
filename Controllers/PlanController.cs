@@ -1,12 +1,12 @@
 using System.Security.Claims;
-using dartford_api.Interfaces;
-using dartford_api.Models;
-using dartford_api.Utils;
+using inflan_api.Interfaces;
+using inflan_api.Models;
+using inflan_api.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace dartford_api.Controllers
+namespace inflan_api.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

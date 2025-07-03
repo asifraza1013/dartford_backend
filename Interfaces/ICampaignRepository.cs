@@ -1,6 +1,6 @@
-using dartford_api.Models;
+using inflan_api.Models;
 
-namespace dartford_api.Interfaces;
+namespace inflan_api.Interfaces;
 
 public interface ICampaignRepository
 {

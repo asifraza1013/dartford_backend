@@ -1,15 +1,14 @@
-
-using dartford_api.Interfaces;
-using dartford_api.MyDBContext;
-using dartford_api.Repositories;
-using dartford_api.Services;
+using inflan_api.MyDBContext;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using inflan_api.Interfaces;
+using inflan_api.Repositories;
+using inflan_api.Services;
 using Microsoft.OpenApi.Models;
 
-namespace dartford_api
+namespace inflan_api
 {
     public class Program
     {

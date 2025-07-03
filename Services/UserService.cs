@@ -1,8 +1,8 @@
-﻿using dartford_api.Interfaces;
-using dartford_api.Models;
-using dartford_api.Repositories;
+﻿using inflan_api.Repositories;
+using inflan_api.Interfaces;
+using inflan_api.Models;
 
-namespace dartford_api.Services
+namespace inflan_api.Services
 {
     public class UserService : IUserService
     {

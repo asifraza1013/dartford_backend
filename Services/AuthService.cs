@@ -1,13 +1,13 @@
-﻿using dartford_api.Interfaces;
-using dartford_api.Models;
-using dartford_api.Utils;
+﻿using inflan_api.Utils;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
+using inflan_api.Interfaces;
+using inflan_api.Models;
 
-namespace dartford_api.Services
+namespace inflan_api.Services
 {
     public class AuthService : IAuthService
     {

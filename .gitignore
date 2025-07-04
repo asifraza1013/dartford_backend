@@ -64,3 +64,4 @@ logs/
 *.editorconfig
 
 appsettings.json
+appsettings.Development.json

@@ -10,10 +10,10 @@ namespace inflan_api.MyDBContext
         public DbSet<Plan> Plans { get; set; }
         public DbSet<Campaign> Campaigns { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
-        // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-        //     => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=dartford");
         protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-            => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
+             => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=dartford");
+        // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
+        //     => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -52,6 +52,25 @@ namespace inflan_api.MyDBContext
                 .WithMany()
                 .HasForeignKey(i => i.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+            
+            // Transaction → User
+            modelBuilder.Entity<Transaction>()
+                .HasOne<User>()                             
+                .WithMany()                               
+                .HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Transaction → Campaign
+            modelBuilder.Entity<Transaction>()
+                .HasOne<Campaign>()                 
+                .WithMany()
+                .HasForeignKey(t => t.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Optional: Unique index on TransactionId string
+            modelBuilder.Entity<Transaction>()
+                .HasIndex(t => t.TransactionId)
+                .IsUnique();
         }
 
     }

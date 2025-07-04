@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using inflan_api.MyDBContext;
@@ -12,9 +13,11 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    partial class InflanDBContextModelSnapshot : ModelSnapshot
+    [Migration("20250704125536_transaction_add")]
+    partial class transaction_add
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

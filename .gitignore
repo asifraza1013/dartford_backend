@@ -62,3 +62,5 @@ logs/
 
 # Ignore auto-generated editor config from SDK
 *.editorconfig
+
+appsettings.json

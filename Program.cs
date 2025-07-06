@@ -78,6 +78,17 @@ namespace inflan_api
                 });
             });
 
+            builder.Services.AddCors(options =>
+            {
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy
+                        .AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader();
+                });
+            });
+
 
             var app = builder.Build();
 
@@ -93,6 +104,9 @@ namespace inflan_api
                 c.SwaggerEndpoint("/swagger/v1/swagger.json", "Inflan Web Api");
                 c.RoutePrefix = "swagger";
             });
+
+            // Use CORS
+            app.UseCors("AllowAll");
 
 
             app.UseHttpsRedirection();

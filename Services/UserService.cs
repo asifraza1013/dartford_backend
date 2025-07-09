@@ -83,28 +83,23 @@ namespace inflan_api.Services
 
         private string GenerateHashSuffix(int length = 6)
         {
-            string guid = Guid.NewGuid().ToString();
-            using var sha = SHA256.Create();
-            byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(guid));
-            return BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, length);
+            return Guid.NewGuid().ToString("N").Substring(0, length).ToLower();
         }
         public async Task<string> GenerateUniqueUsernameFromNameAsync(string name)
         {
             string baseUsername = CleanName(name);
 
-            for (int attempt = 0; attempt < 3; attempt++)
-            {
-                string suffix = GenerateHashSuffix(6);
-                string username = baseUsername + suffix;
 
-                var exists = await _userRepository.GetByUsernameAsync(username);
-                if (exists == null)
-                {
-                    return username;
-                }
+            string suffix = GenerateHashSuffix(6);
+            string username = baseUsername + suffix;
+
+            var exists = await _userRepository.GetByUsernameAsync(username);
+            if (exists == null)
+            {
+                return username;
             }
 
-            throw new Exception("Failed to generate a unique username after multiple attempts.");
+            throw new Exception("Failed to generate a unique username.");
         }
     }
 }

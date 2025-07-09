@@ -58,7 +58,7 @@ namespace inflan_api.Controllers
         {
             var existing = await _userService.GetByEmailAsync(user.Email);
             if (existing != null)
-                return StatusCode(401, new { message = Message.EMAIL_ALREADY_REGISTERED });
+                return StatusCode(405, new { message = Message.EMAIL_ALREADY_REGISTERED });
 
             user.Status = (int)Status.ACTIVE;
             try
@@ -70,7 +70,12 @@ namespace inflan_api.Controllers
                 return StatusCode(500, new { message = ex.Message });
             }
             var result = await _authService.RegisterAsync(user);
-            return Ok(result);
+            var token = _authService.GenerateJwtToken(user);
+            return Ok(new
+            {
+                Token = token,
+                User = result
+            });
         }
     }
 }

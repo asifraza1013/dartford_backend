@@ -1,4 +1,6 @@
-﻿using inflan_api.Repositories;
+﻿using System.Security.Cryptography;
+using System.Text;
+using inflan_api.Repositories;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 
@@ -67,6 +69,42 @@ namespace inflan_api.Services
             if (user == null || user.Password != password)
                 return null;
             return user;
+        }
+        private string CleanName(string name)
+        {
+            var parts = name.Trim().ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return parts.Length switch
+            {
+                0 => "user",
+                1 => parts[0],
+                _ => parts[0] + parts[^1]
+            };
+        }
+
+        private string GenerateHashSuffix(int length = 6)
+        {
+            string guid = Guid.NewGuid().ToString();
+            using var sha = SHA256.Create();
+            byte[] hash = sha.ComputeHash(Encoding.UTF8.GetBytes(guid));
+            return BitConverter.ToString(hash).Replace("-", "").ToLower().Substring(0, length);
+        }
+        public async Task<string> GenerateUniqueUsernameFromNameAsync(string name)
+        {
+            string baseUsername = CleanName(name);
+
+            for (int attempt = 0; attempt < 3; attempt++)
+            {
+                string suffix = GenerateHashSuffix(6);
+                string username = baseUsername + suffix;
+
+                var exists = await _userRepository.GetByUsernameAsync(username);
+                if (exists == null)
+                {
+                    return username;
+                }
+            }
+
+            throw new Exception("Failed to generate a unique username after multiple attempts.");
         }
     }
 }

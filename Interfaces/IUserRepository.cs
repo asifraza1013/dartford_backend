@@ -10,5 +10,7 @@ namespace inflan_api.Interfaces
         Task Update(User user);
         Task Delete(int id);
         Task<User?> GetByEmailAsync(string email);
+        Task<User?> GetByUsernameAsync(string username);
+
     }
 }

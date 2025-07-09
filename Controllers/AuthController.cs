@@ -61,6 +61,14 @@ namespace inflan_api.Controllers
                 return StatusCode(401, new { message = Message.EMAIL_ALREADY_REGISTERED });
 
             user.Status = (int)Status.ACTIVE;
+            try
+            {
+                user.UserName = await _userService.GenerateUniqueUsernameFromNameAsync(user.Name);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
             var result = await _authService.RegisterAsync(user);
             return Ok(result);
         }

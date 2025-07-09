@@ -10,10 +10,10 @@ namespace inflan_api.MyDBContext
         public DbSet<Plan> Plans { get; set; }
         public DbSet<Campaign> Campaigns { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
-        // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-        //      => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=bPyGMMHTWQ457GcGFYHbJRUSTA2Mgw4M");
         protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-             => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
+              => optionsBuilder.UseNpgsql("Host=dpg-d1e5gi7diees73bgvp6g-a;Database=dartford; Username=root; Password=bPyGMMHTWQ457GcGFYHbJRUSTA2Mgw4M");
+        // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
+        //     => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

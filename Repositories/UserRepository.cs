@@ -51,6 +51,12 @@ namespace inflan_api.Repositories
             return await _context.Users
             .FirstOrDefaultAsync(u => u.Email.ToLower() == email.ToLower());
         }
+        public async Task<User?> GetByUsernameAsync(string username)
+        {
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.UserName == username);
+        }
+
 
     }
 }

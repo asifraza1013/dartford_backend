@@ -53,6 +53,15 @@ namespace inflan_api.Controllers
         [HttpPost("createNewUser")]
         public async Task<IActionResult> CreateUser([FromBody] User user)
         {
+            try
+            {
+                user.UserName = await _userService.GenerateUniqueUsernameFromNameAsync(user.Name);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = ex.Message });
+            }
+
             var createdUser = await _userService.CreateUser(user);
             return StatusCode(200,  new { message = Message.USER_CREATED_SUCCESSFULLY, user = createdUser});
         }

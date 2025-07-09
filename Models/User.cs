@@ -21,7 +21,6 @@ namespace inflan_api.Models
         [Required]
         public int UserType { get; set; }
         public string? ProfileImage { get; set; }
-        [Required]
         public int Status { get; set; }
 
     }

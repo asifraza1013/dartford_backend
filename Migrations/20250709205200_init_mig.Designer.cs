@@ -13,7 +13,7 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    [Migration("20250709121505_init_mig")]
+    [Migration("20250709205200_init_mig")]
     partial class init_mig
     {
         /// <inheritdoc />

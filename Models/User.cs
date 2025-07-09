@@ -8,8 +8,7 @@ namespace inflan_api.Models
         [Key]
         public int Id { get; set; }
         public string? Name { get; set; }
-        [Required]
-        public string UserName { get; set; }
+        public string? UserName { get; set; }
         [Required]
         [EmailAddress]
         public string Email { get; set; }

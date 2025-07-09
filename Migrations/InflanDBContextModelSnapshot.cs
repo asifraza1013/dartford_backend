@@ -254,7 +254,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("UserName")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("UserType")

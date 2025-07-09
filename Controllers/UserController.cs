@@ -1,7 +1,9 @@
-﻿using inflan_api.Services;
+﻿using System.Security.Claims;
+using inflan_api.Services;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using inflan_api.Utils;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -23,6 +25,19 @@ namespace inflan_api.Controllers
         {
             var users = await _userService.GetAllUsers();
             return Ok(users);
+        }
+
+        [HttpGet("getCurrentUser")]
+        [Authorize]
+        public async Task<IActionResult> GetCurrentUser()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+            var user = await _userService.GetUserById(userId);
+            return user == null ? StatusCode(400, new { message = Message.USER_NOT_FOUND }) : Ok(user);
         }
 
         [HttpGet("getUserById/{id}")]

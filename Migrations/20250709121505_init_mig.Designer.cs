@@ -13,8 +13,8 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    [Migration("20250704125536_transaction_add")]
-    partial class transaction_add
+    [Migration("20250709121505_init_mig")]
+    partial class init_mig
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -257,7 +257,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("UserName")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("UserType")

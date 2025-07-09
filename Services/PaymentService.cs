@@ -8,10 +8,12 @@ namespace inflan_api.Services;
 public class PaymentService : IPaymentService
 {
     private readonly ITransactionRepository _transactionRepo;
+    private readonly ICampaignService _campaignService;
     
-    public PaymentService(ITransactionRepository transactionRepo, IConfiguration configuration)
+    public PaymentService(ITransactionRepository transactionRepo, IConfiguration configuration,  ICampaignService campaignService)
     {
         _transactionRepo = transactionRepo;
+        _campaignService = campaignService;
         StripeConfiguration.ApiKey = configuration["Stripe:SecretKey"];
     }
 
@@ -35,7 +37,7 @@ public class PaymentService : IPaymentService
         {
             var paymentIntent = await paymentIntentService.CreateAsync(new PaymentIntentCreateOptions
             {
-                Amount = (long)(amount * 100),
+                Amount = (long)(amount),
                 Currency = currency,
                 PaymentMethod = paymentMethodId,
                 Confirm = true,
@@ -58,6 +60,8 @@ public class PaymentService : IPaymentService
                 transaction.TransactionStatus = (int)PaymentStatus.FAILED;
                 transaction.FailureMessage = "Payment not succeeded.";
             }
+            await _campaignService.UpdateCampaign(transaction.CampaignId, new Campaign{PaymentStatus = paymentIntent.Status == "succeeded" ? 2 : 3});
+            
         }
         catch (StripeException ex)
         {

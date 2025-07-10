@@ -9,9 +9,9 @@ public class Transaction
     public int Id { get; set; }
     public int UserId { get; set; }
     public float Amount { get; set; }
-    public string Currency { get; set; }
+    public string? Currency { get; set; }
     public int TransactionStatus { get; set; }
-    public string TransactionId { get; set; }
+    public string? TransactionId { get; set; }
     public int CampaignId { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? CompletedAt { get; set; }

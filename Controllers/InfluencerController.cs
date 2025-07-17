@@ -45,6 +45,11 @@ namespace inflan_api.Controllers
 
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
+            Random random = new Random();
+            influencer.FacebookFollower = random.Next(4000, 4000000);
+            influencer.TwitterFollower = random.Next(4000, 4000000);
+            influencer.TikTokFollower = random.Next(4000, 4000000);
+            influencer.InstagramFollower = random.Next(4000, 4000000);
             var created = await _influencerService.CreateInfluencer(influencer);
             return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});
         }

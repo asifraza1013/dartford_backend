@@ -14,11 +14,13 @@ namespace inflan_api.Controllers
     {
         private readonly IUserService _userService;
         private readonly IAuthService _authService;
-
-        public AuthController(IUserService userService, IAuthService authService)
+        private readonly IInfluencerService _influencerService;
+ 
+        public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService)
         {
             _userService = userService;
             _authService = authService;
+            _influencerService = influencerService;
         }
 
         [HttpGet("getUser/{id}")]
@@ -27,7 +29,7 @@ namespace inflan_api.Controllers
             var user = await _userService.GetUserById(id);
             if (user == null)
                 return StatusCode(400, new { message = Message.USER_NOT_FOUND });
-
+            
             return Ok(user);
         }
 
@@ -39,7 +41,37 @@ namespace inflan_api.Controllers
                 return StatusCode(401, new { message = Message.INVALID_EMAIL_PASSWORD });
 
             var token = _authService.GenerateJwtToken(user);
+            int userType = user.UserType;
 
+            if (userType == (int)UserType.BRAND)
+            {
+                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandName)
+                                       && !string.IsNullOrWhiteSpace(user.BrandCategory)
+                                       && !string.IsNullOrWhiteSpace(user.BrandSector)
+                                       && user.Goals != null
+                                       && user.Goals.Any();
+
+                if (!brandInfoFilled)
+                {
+                    return StatusCode(400, new
+                    {
+                        token,
+                        message = Message.BRAND_INFO_NOT_FILLED
+                    });
+                }
+            }else if (user.UserType == (int)UserType.INFLUENCER)
+            {
+                var influencer = await _influencerService.GetInfluencerByUserId(user.Id);
+                if (influencer == null)
+                {
+                    return StatusCode(400, new
+                    {
+                        token,
+                        message = Message.INFLUENCER_INFO_NOT_FILLED
+                    });
+                }
+            }
+            
             return Ok(new
             {
                 Token = token,

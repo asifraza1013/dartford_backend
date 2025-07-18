@@ -16,6 +16,7 @@ namespace inflan_api.Models
         public int FacebookFollower { get; set; }
         public int TikTokFollower { get; set; }
         public string? Bio { get; set; } = "";
+        public User? User { get; set; }
 
     }
 }

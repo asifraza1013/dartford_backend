@@ -12,12 +12,12 @@ namespace inflan_api.Services
             _influencerRepository = influencerRepository;
         }
 
-        public async Task<IEnumerable<Influencer>> GetAllInfluencers()
+        public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers()
         {
             return await _influencerRepository.GetAll();
         }
 
-        public async Task<Influencer?> GetInfluencerById(int id)
+        public async Task<InfluencerUserModel?> GetInfluencerById(int id)
         {
             return await _influencerRepository.GetById(id);
         }

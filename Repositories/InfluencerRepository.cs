@@ -14,11 +14,11 @@ namespace inflan_api.Repositories
             _context = new InflanDBContext();
         }
 
-        private async Task<IEnumerable<Influencer>> getExplicitInfluencers()
+        private async Task<IEnumerable<InfluencerUserModel>> getExplicitInfluencers()
         {
             return await (from i in _context.Influencers
                 join u in _context.Users on i.UserId equals u.Id
-                select new Influencer
+                select new InfluencerUserModel
                 {
                     Id = i.Id,
                     UserId = i.UserId,
@@ -52,12 +52,12 @@ namespace inflan_api.Repositories
 
         }
 
-        private async Task<Influencer?> getExplicitInfluencer(int id)
+        private async Task<InfluencerUserModel?> getExplicitInfluencer(int id)
         {
             return await (from i in _context.Influencers
                 join u in _context.Users on i.UserId equals u.Id
                 where i.Id == id
-                select new Influencer
+                select new InfluencerUserModel
                 {
                     Id = i.Id,
                     UserId = i.UserId,
@@ -89,12 +89,12 @@ namespace inflan_api.Repositories
                 }).FirstOrDefaultAsync();
 
         }
-        public async Task<IEnumerable<Influencer>> GetAll()
+        public async Task<IEnumerable<InfluencerUserModel>> GetAll()
         {
             return await getExplicitInfluencers();
         }
 
-        public async Task<Influencer?> GetById(int id)
+        public async Task<InfluencerUserModel?> GetById(int id)
         {
             return await getExplicitInfluencer(id);
         }

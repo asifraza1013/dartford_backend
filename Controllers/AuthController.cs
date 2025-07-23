@@ -15,12 +15,14 @@ namespace inflan_api.Controllers
         private readonly IUserService _userService;
         private readonly IAuthService _authService;
         private readonly IInfluencerService _influencerService;
+        private readonly IPlanService _planService;
  
-        public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService)
+        public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService, IPlanService planService)
         {
             _userService = userService;
             _authService = authService;
             _influencerService = influencerService;
+            _planService = planService;
         }
 
         [HttpGet("getUser/{id}")]
@@ -45,18 +47,18 @@ namespace inflan_api.Controllers
 
             if (userType == (int)UserType.BRAND)
             {
-                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandName)
-                                       && !string.IsNullOrWhiteSpace(user.BrandCategory)
+                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandCategory)
                                        && !string.IsNullOrWhiteSpace(user.BrandSector)
                                        && user.Goals != null
                                        && user.Goals.Any();
 
                 if (!brandInfoFilled)
                 {
-                    return StatusCode(400, new
+                    return StatusCode(200, new
                     {
                         token,
-                        message = Message.BRAND_INFO_NOT_FILLED
+                        message = Message.BRAND_INFO_NOT_FILLED,
+                        missingStep = "Goals or Category missing"
                     });
                 }
             }else if (user.UserType == (int)UserType.INFLUENCER)
@@ -64,10 +66,21 @@ namespace inflan_api.Controllers
                 var influencer = await _influencerService.GetInfluencerByUserId(user.Id);
                 if (influencer == null)
                 {
-                    return StatusCode(400, new
+                    return StatusCode(200, new
                     {
                         token,
-                        message = Message.INFLUENCER_INFO_NOT_FILLED
+                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        missingStep = "Socials missing"
+                    });
+                }
+                var influencerPlans = await _planService.GetPlansByUserId(user.Id);
+                if (influencerPlans == null || !influencerPlans.Any())
+                {
+                    return StatusCode(200, new
+                    {
+                        token,
+                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        missingStep = "Plans missing"
                     });
                 }
             }

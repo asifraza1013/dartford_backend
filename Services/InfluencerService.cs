@@ -1,4 +1,5 @@
-﻿using inflan_api.Interfaces;
+﻿using System.Text.Json;
+using inflan_api.Interfaces;
 using inflan_api.Models;
 
 namespace inflan_api.Services
@@ -11,18 +12,61 @@ namespace inflan_api.Services
         {
             _influencerRepository = influencerRepository;
         }
-        public int ParseFollowers(string value)
+        
+        public int ParseFollowerString(string? value)
         {
-            if (string.IsNullOrWhiteSpace(value)) return 0;
+            if (string.IsNullOrWhiteSpace(value))
+                return 0;
 
-            string temp = value.ToUpperInvariant().Replace("M", "").Replace("K", "").Trim();
-            double num = 0;
-            double.TryParse(temp, out num);
+            value = value.ToLower().Replace(",", "").Trim();
 
-            if (value.Contains("M")) return (int)(num * 1_000_000);
-            if (value.Contains("K")) return (int)(num * 1_000);
-            return (int)num;
+            double number = 0;
+
+            if (value.EndsWith("m") && double.TryParse(value[..^1], out number))
+                return (int)(number * 1_000_000);
+            if (value.EndsWith("k") && double.TryParse(value[..^1], out number))
+                return (int)(number * 1_000);
+            if (double.TryParse(value, out number))
+                return (int)number;
+
+            return 0;
         }
+        public int ParseFollowersFromTwitter(JsonElement json)
+        {
+            var count = json.GetProperty("follower_count").GetDouble();
+            var unit = json.GetProperty("unit").GetString()?.ToLower();
+
+            int multiplier = unit switch
+            {
+                "millions" => 1_000_000,
+                "thousands" => 1_000,
+                _ => 1
+            };
+
+            return (int)(count * multiplier);
+        }
+        public int ParseFollowersFromTikTok(JsonElement tiktokJson)
+        {
+            if (tiktokJson.TryGetProperty("followers_count", out var followersProp))
+            {
+                string? followersStr = followersProp.GetString();
+                return ParseFollowerString(followersStr);
+            }
+            return 0;
+        }
+        
+        public int ParseFollowersFromInstagram(JsonElement instaJson)
+        {
+            if (instaJson.TryGetProperty("influencer", out var influencerObj) &&
+                influencerObj.TryGetProperty("followers", out var followersProp))
+            {
+                string? followersStr = followersProp.GetString();
+                return ParseFollowerString(followersStr);
+            }
+            return 0;
+        }
+
+
         public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers()
         {
             return await _influencerRepository.GetAll();
@@ -61,5 +105,39 @@ namespace inflan_api.Services
         {
             return await _influencerRepository.GetByUserId(userId);
         }
+        public async Task<(JsonElement data, string? error)> SafeParseJsonAsync(HttpResponseMessage response, string platform)
+        {
+            try
+            {
+                var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+                
+                if (json.ValueKind == JsonValueKind.Array)
+                {
+                    if (json.GetArrayLength() == 0)
+                        return (default, $"{platform}:Invalid user name. Empty array received.");
+
+                    var firstItem = json[0];
+                    if (!firstItem.EnumerateObject().Any())
+                        return (default, $"{platform}: Invalid user name. Array contains empty object.");
+
+                    return (firstItem, null);
+                }
+
+                if (json.TryGetProperty("items_found", out var itemsFoundProp) && itemsFoundProp.GetInt32() == 0)
+                    return (default, $"{platform}:Invalid user name. No user found.");
+
+                if (platform == "Twitter" &&
+                    (!json.TryGetProperty("follower_count", out var countProp) || countProp.ValueKind == JsonValueKind.Null))
+                    return (default, $"{platform}:Invalid user name. Follower count is missing or null.");
+
+                return (json, null);
+            }
+            catch (Exception ex)
+            {
+                return (default, $"{platform}: Failed to parse response: {ex.Message}");
+            }
+        }
+        
+        
     }
 }

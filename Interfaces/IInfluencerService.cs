@@ -1,4 +1,5 @@
-﻿using inflan_api.Models;
+﻿using System.Text.Json;
+using inflan_api.Models;
 
 namespace inflan_api.Interfaces
 {
@@ -10,6 +11,10 @@ namespace inflan_api.Interfaces
         Task<bool> UpdateInfluencer(int userId, Influencer influencer);
         Task<bool> DeleteInfluencer(int id);
         Task<Influencer?> GetInfluencerByUserId(int userId);
-        int ParseFollowers(string value);
+        int ParseFollowersFromTwitter(JsonElement json);
+        int ParseFollowersFromTikTok(JsonElement json);
+        int ParseFollowersFromInstagram(JsonElement json);
+        int ParseFollowerString(string? value);
+        Task<(JsonElement data, string? error)> SafeParseJsonAsync(HttpResponseMessage response, string platform);
     }
 }

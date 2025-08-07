@@ -65,27 +65,20 @@ namespace inflan_api.Controllers
                 new { influencer_username = influencer.Instagram });
 
             var responses = await Task.WhenAll(twitterRequest, tiktokRequest, instagramRequest);
+            
+            var twitterJson = await _influencerService.SafeParseJsonAsync(responses[0], "Twitter");
+            var tiktokJson = await _influencerService.SafeParseJsonAsync(responses[1], "TikTok");
+            var instagramJson = await _influencerService.SafeParseJsonAsync(responses[2], "Instagram");
 
-            if (responses.Any(r => !r.IsSuccessStatusCode))
-                return StatusCode(500, new { message = "One or more follower APIs failed" });
+            if (twitterJson.error != null) return StatusCode(400, new { message = twitterJson.error });
+            if (tiktokJson.error != null) return StatusCode(400, new { message = tiktokJson.error });
+            if (instagramJson.error != null) return StatusCode(400, new { message = instagramJson.error });
+            
+            influencer.TwitterFollower = _influencerService.ParseFollowersFromTwitter(twitterJson.data);
 
-            var twitterJson = await responses[0].Content.ReadFromJsonAsync<JsonElement>();
-            var tiktokJson = await responses[1].Content.ReadFromJsonAsync<JsonElement>();
-            var instagramJson = await responses[2].Content.ReadFromJsonAsync<JsonElement>();
+            influencer.TikTokFollower = _influencerService.ParseFollowersFromTikTok(tiktokJson.data);
 
-            double followerCount = twitterJson.GetProperty("follower_count").GetDouble();
-            string unit = twitterJson.GetProperty("unit").GetString()?.ToLower() ?? "";
-
-            int multiplier = unit switch
-            {
-                "millions" => 1_000_000,
-                "thousands" => 1_000,
-                _ => 1
-            };
-
-            influencer.TwitterFollower = (int)(followerCount * multiplier);
-            influencer.TikTokFollower = _influencerService.ParseFollowers(tiktokJson[0].GetProperty("followers_count").GetString() ?? "0");
-            influencer.InstagramFollower = _influencerService.ParseFollowers(instagramJson[0].GetProperty("influencer").GetProperty("followers").GetString() ?? "0");
+            influencer.InstagramFollower = _influencerService.ParseFollowersFromInstagram(instagramJson.data);
             influencer.FacebookFollower = new Random().Next(10000, 1000000);
             var created = await _influencerService.CreateInfluencer(influencer);
             return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});

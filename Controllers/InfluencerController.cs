@@ -22,7 +22,7 @@ namespace inflan_api.Controllers
         {
             _influencerService = influencerService;
             _userService = userService;
-            authToken = configuration["ZylaLab:AuthToken"];
+            authToken = "9375|OHtVRglGLaJYskZNGHOQPM9oJ6S5wRyj7UTBnCIW";
         }
 
         [HttpGet("getAllInfluencers")]

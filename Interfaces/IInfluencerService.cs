@@ -10,6 +10,6 @@ namespace inflan_api.Interfaces
         Task<bool> UpdateInfluencer(int userId, Influencer influencer);
         Task<bool> DeleteInfluencer(int id);
         Task<Influencer?> GetInfluencerByUserId(int userId);
-
+        int ParseFollowers(string value);
     }
 }

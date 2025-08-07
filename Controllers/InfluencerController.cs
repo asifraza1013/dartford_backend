@@ -1,4 +1,6 @@
-﻿using System.Security.Claims;
+﻿using System.Net.Http.Headers;
+using System.Security.Claims;
+using System.Text.Json;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using inflan_api.Utils;
@@ -14,11 +16,13 @@ namespace inflan_api.Controllers
     {
         private readonly IInfluencerService _influencerService;
         private readonly IUserService _userService;
+        private readonly string authToken;
 
-        public InfluencerController(IInfluencerService influencerService,  IUserService userService)
+        public InfluencerController(IInfluencerService influencerService,  IUserService userService, IConfiguration configuration)
         {
             _influencerService = influencerService;
             _userService = userService;
+            authToken = configuration["ZylaLab:AuthToken"];
         }
 
         [HttpGet("getAllInfluencers")]
@@ -45,11 +49,44 @@ namespace inflan_api.Controllers
 
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
-            Random random = new Random();
-            influencer.FacebookFollower = random.Next(4000, 4000000);
-            influencer.TwitterFollower = random.Next(4000, 4000000);
-            influencer.TikTokFollower = random.Next(4000, 4000000);
-            influencer.InstagramFollower = random.Next(4000, 4000000);
+            var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
+
+            var twitterRequest = httpClient.PostAsJsonAsync(
+                "https://zylalabs.com/api/9043/twitter+user+profiles+extract+api/16280/get+follower+count+by+username",
+                new { username = influencer.Twitter });
+
+            var tiktokRequest = httpClient.PostAsJsonAsync(
+                "https://zylalabs.com/api/9008/tiktok+influencer+profile+data+api/16153/get+ranking+and+followers+by+username",
+                new { username = influencer.TikTok });
+
+            var instagramRequest = httpClient.PostAsJsonAsync(
+                "https://zylalabs.com/api/9059/instagram+influencer+insights+api/16324/get+influencer+profile+by+username",
+                new { influencer_username = influencer.Instagram });
+
+            var responses = await Task.WhenAll(twitterRequest, tiktokRequest, instagramRequest);
+
+            if (responses.Any(r => !r.IsSuccessStatusCode))
+                return StatusCode(500, new { message = "One or more follower APIs failed" });
+
+            var twitterJson = await responses[0].Content.ReadFromJsonAsync<JsonElement>();
+            var tiktokJson = await responses[1].Content.ReadFromJsonAsync<JsonElement>();
+            var instagramJson = await responses[2].Content.ReadFromJsonAsync<JsonElement>();
+
+            double followerCount = twitterJson.GetProperty("follower_count").GetDouble();
+            string unit = twitterJson.GetProperty("unit").GetString()?.ToLower() ?? "";
+
+            int multiplier = unit switch
+            {
+                "millions" => 1_000_000,
+                "thousands" => 1_000,
+                _ => 1
+            };
+
+            influencer.TwitterFollower = (int)(followerCount * multiplier);
+            influencer.TikTokFollower = _influencerService.ParseFollowers(tiktokJson[0].GetProperty("followers_count").GetString() ?? "0");
+            influencer.InstagramFollower = _influencerService.ParseFollowers(instagramJson[0].GetProperty("influencer").GetProperty("followers").GetString() ?? "0");
+            influencer.FacebookFollower = new Random().Next(10000, 1000000);
             var created = await _influencerService.CreateInfluencer(influencer);
             return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});
         }

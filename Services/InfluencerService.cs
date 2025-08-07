@@ -11,7 +11,18 @@ namespace inflan_api.Services
         {
             _influencerRepository = influencerRepository;
         }
+        public int ParseFollowers(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return 0;
 
+            string temp = value.ToUpperInvariant().Replace("M", "").Replace("K", "").Trim();
+            double num = 0;
+            double.TryParse(temp, out num);
+
+            if (value.Contains("M")) return (int)(num * 1_000_000);
+            if (value.Contains("K")) return (int)(num * 1_000);
+            return (int)num;
+        }
         public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers()
         {
             return await _influencerRepository.GetAll();

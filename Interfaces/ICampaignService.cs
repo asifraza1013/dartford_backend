@@ -12,6 +12,6 @@ public interface ICampaignService
     Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId);
 
     Task<IEnumerable<Campaign>> GetCampaignsByInfluencerAndStatus(int influencerId, int campaignStatus);
-    Task<string?> SaveCampaignDocumentAsync(IFormFile? file, int campaignId);
+    Task<List<string>> SaveCampaignDocumentsAsync(List<IFormFile> files);
 
 }

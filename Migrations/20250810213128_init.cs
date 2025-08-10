@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace inflan_api.Migrations
 {
     /// <inheritdoc />
-    public partial class init_mig : Migration
+    public partial class init : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -21,8 +21,8 @@ namespace inflan_api.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     Name = table.Column<string>(type: "text", nullable: true),
                     UserName = table.Column<string>(type: "text", nullable: true),
-                    Email = table.Column<string>(type: "text", nullable: false),
-                    Password = table.Column<string>(type: "text", nullable: false),
+                    Email = table.Column<string>(type: "text", nullable: true),
+                    Password = table.Column<string>(type: "text", nullable: true),
                     BrandName = table.Column<string>(type: "text", nullable: true),
                     BrandCategory = table.Column<string>(type: "text", nullable: true),
                     BrandSector = table.Column<string>(type: "text", nullable: true),
@@ -43,15 +43,15 @@ namespace inflan_api.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<int>(type: "integer", nullable: false),
-                    Twitter = table.Column<string>(type: "text", nullable: false),
-                    Instagram = table.Column<string>(type: "text", nullable: false),
-                    Facebook = table.Column<string>(type: "text", nullable: false),
-                    TikTok = table.Column<string>(type: "text", nullable: false),
+                    Twitter = table.Column<string>(type: "text", nullable: true),
+                    Instagram = table.Column<string>(type: "text", nullable: true),
+                    Facebook = table.Column<string>(type: "text", nullable: true),
+                    TikTok = table.Column<string>(type: "text", nullable: true),
                     TwitterFollower = table.Column<int>(type: "integer", nullable: false),
                     InstagramFollower = table.Column<int>(type: "integer", nullable: false),
                     FacebookFollower = table.Column<int>(type: "integer", nullable: false),
                     TikTokFollower = table.Column<int>(type: "integer", nullable: false),
-                    Bio = table.Column<string>(type: "text", nullable: false)
+                    Bio = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -101,7 +101,7 @@ namespace inflan_api.Migrations
                     CampaignStartDate = table.Column<DateOnly>(type: "date", nullable: false),
                     CampaignEndDate = table.Column<DateOnly>(type: "date", nullable: false),
                     BrandId = table.Column<int>(type: "integer", nullable: false),
-                    InstructionDocuments = table.Column<string>(type: "text", nullable: true),
+                    InstructionDocuments = table.Column<List<string>>(type: "text[]", nullable: true),
                     CampaignStatus = table.Column<int>(type: "integer", nullable: false),
                     InfluencerId = table.Column<int>(type: "integer", nullable: false),
                     Currency = table.Column<string>(type: "text", nullable: true),
@@ -139,9 +139,9 @@ namespace inflan_api.Migrations
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<int>(type: "integer", nullable: false),
                     Amount = table.Column<float>(type: "real", nullable: false),
-                    Currency = table.Column<string>(type: "text", nullable: false),
+                    Currency = table.Column<string>(type: "text", nullable: true),
                     TransactionStatus = table.Column<int>(type: "integer", nullable: false),
-                    TransactionId = table.Column<string>(type: "text", nullable: false),
+                    TransactionId = table.Column<string>(type: "text", nullable: true),
                     CampaignId = table.Column<int>(type: "integer", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     CompletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),

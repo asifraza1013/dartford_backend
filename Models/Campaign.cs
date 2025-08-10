@@ -17,7 +17,7 @@ public class Campaign
 
     public int BrandId { get; set; }
 
-    public string? InstructionDocuments { get; set; }
+    public List<string>? InstructionDocuments { get; set; }
 
     public int CampaignStatus { get; set; } = 1;
 

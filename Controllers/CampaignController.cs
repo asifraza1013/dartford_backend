@@ -36,8 +36,7 @@ namespace inflan_api.Controllers
 
         [HttpPost("createNewCampaign")]
         [Authorize]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> CreateCampaign([FromForm] Campaign campaign, IFormFile? file)
+        public async Task<IActionResult> CreateCampaign([FromBody] Campaign campaign)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
@@ -47,25 +46,12 @@ namespace inflan_api.Controllers
             campaign.BrandId = userId;
             var created = await _campaignService.CreateCampaign(campaign);
             if(created == null) return StatusCode(400, new { message = "Campaign not created. Plan missing." });
-            var relativePath = await _campaignService.SaveCampaignDocumentAsync(file, created.Id);
-
-            if (relativePath != null)
-            {
-                created.InstructionDocuments = relativePath;
-                var updated = await _campaignService.UpdateCampaign(created.Id, created);
-                if (!updated)
-                    return StatusCode(500, new { message = "Could Not add instruction document. Campaign Created Successfully" });
-            }
             return StatusCode(200, new { message = "Campaign created", campaign = created });
         }
 
         [HttpPut("updateCampaign/{id}")]
-        [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UpdateCampaign(int id, [FromForm] Campaign campaign,  IFormFile? file)
+        public async Task<IActionResult> UpdateCampaign(int id, [FromBody] Campaign campaign)
         {
-            var newImagePath = await _campaignService.SaveCampaignDocumentAsync(file, id);
-            if (newImagePath != null)
-                campaign.InstructionDocuments = newImagePath;
             var updated = await _campaignService.UpdateCampaign(id, campaign);
             if (!updated)
                 return StatusCode(500, new { message = "Campaign update failed" });
@@ -91,6 +77,18 @@ namespace inflan_api.Controllers
                 return NotFound(new { message = "No campaigns found with the given status for this influencer." });
 
             return Ok(campaigns);
+        }
+        
+        [HttpPost("uploadCampaignDocuments")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadCampaignDocuments([FromForm] List<IFormFile> files)
+        {
+            var filePaths = await _campaignService.SaveCampaignDocumentsAsync(files);
+
+            if (filePaths.Count == 0)
+                return BadRequest(new { message = "No valid files uploaded." });
+
+            return Ok(new { message = "Files uploaded successfully.", files = filePaths });
         }
 
     }

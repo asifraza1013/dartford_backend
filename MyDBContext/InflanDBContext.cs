@@ -11,9 +11,9 @@ namespace inflan_api.MyDBContext
         public DbSet<Campaign> Campaigns { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
         protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-              => optionsBuilder.UseNpgsql("Host=127.0.0.1;Port=5432;Database=your_app_db;Username=your_app_user;Password=YourAppPassword123");
+            => optionsBuilder.UseNpgsql("Host=127.0.0.1;Port=5432;Database=your_app_db;Username=your_app_user;Password=YourAppPassword123");
         // protected override void OnConfiguring (DbContextOptionsBuilder optionsBuilder)
-        //  => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
+          // => optionsBuilder.UseNpgsql("Host=localhost;Database=inflan;Username=postgres;Password=pass123");
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

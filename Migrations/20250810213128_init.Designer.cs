@@ -13,8 +13,8 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    [Migration("20250709205200_init_mig")]
-    partial class init_mig
+    [Migration("20250810213128_init")]
+    partial class init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -58,8 +58,8 @@ namespace inflan_api.Migrations
                     b.Property<int>("InfluencerId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("InstructionDocuments")
-                        .HasColumnType("text");
+                    b.PrimitiveCollection<List<string>>("InstructionDocuments")
+                        .HasColumnType("text[]");
 
                     b.Property<int>("PaymentStatus")
                         .HasColumnType("integer");
@@ -87,32 +87,27 @@ namespace inflan_api.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("Bio")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Facebook")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("FacebookFollower")
                         .HasColumnType("integer");
 
                     b.Property<string>("Instagram")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("InstagramFollower")
                         .HasColumnType("integer");
 
                     b.Property<string>("TikTok")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("TikTokFollower")
                         .HasColumnType("integer");
 
                     b.Property<string>("Twitter")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("TwitterFollower")
@@ -188,7 +183,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Currency")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("FailureMessage")
@@ -198,7 +192,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("TransactionId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("TransactionStatus")
@@ -237,7 +230,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Email")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.PrimitiveCollection<List<string>>("Goals")
@@ -247,7 +239,6 @@ namespace inflan_api.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Password")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("ProfileImage")

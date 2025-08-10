@@ -12,6 +12,7 @@ namespace inflan_api.Interfaces
         Task<User?> GetByEmailAsync(string email);
         Task<User?> ValidateUserAsync(string email, string password);
         Task<string> GenerateUniqueUsernameFromNameAsync(string name);
+        Task<string?> SaveOrUpdateProfilePictureAsync(int userId, IFormFile? file);
 
     }
 }

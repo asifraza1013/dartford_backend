@@ -84,6 +84,33 @@ namespace inflan_api.Controllers
             }
             return user == null ? StatusCode(400, new { message = Message.USER_NOT_FOUND }) : Ok(user);
         }
+        
+        [Authorize]
+        [HttpPost("uploadProfilePicture")]
+        public async Task<IActionResult> UploadProfilePicture(IFormFile file)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized(new { message = "UserId not found in token" });
+
+            int userId = int.Parse(userIdClaim.Value);
+
+            var relativePath = await _userService.SaveOrUpdateProfilePictureAsync(userId, file);
+
+            if (relativePath == null)
+                return BadRequest("Invalid file.");
+
+            var user = await _userService.GetUserById(userId);
+            if (user == null)
+                return NotFound();
+
+            user.ProfileImage = relativePath;
+            await _userService.UpdateUser(userId, user);
+
+            return Ok(new { message = "Profile picture uploaded", path = relativePath });
+        }
+
+
 
         [HttpGet("getUserById/{id}")]
         public async Task<IActionResult> GetUserById(int id)
@@ -112,13 +139,17 @@ namespace inflan_api.Controllers
         }
 
         [HttpPut("updateUser/{id}")]
-        public async Task<IActionResult> UpdateUser(int id, [FromBody] User user)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateUser(int id, [FromForm] User user, IFormFile? file)
         {
+            var newImagePath = await _userService.SaveOrUpdateProfilePictureAsync(id, file);
+            if (newImagePath != null)
+                user.ProfileImage = newImagePath;
             var updated = await _userService.UpdateUser(id, user);
             if (!updated)
                 return StatusCode(500,  new { message = Message.USER_UPDATE_FAILED });
 
-            return NoContent();
+            return StatusCode(200, new { message = Message.USER_UPDATED_SUCCESSFULLY });
         }
 
         [HttpDelete("deleteUser/{id}")]

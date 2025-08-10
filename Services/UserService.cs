@@ -37,7 +37,15 @@ namespace inflan_api.Services
 
             if (user.Name != null) existingUser.Name = user.Name;
             if (user.UserName != null) existingUser.UserName = user.UserName;
-            if (user.Email != null) existingUser.Email = user.Email;
+            if (user.Email != null)
+            {
+                var userExist = await GetByEmailAsync(user.Email);
+                if (userExist != null)
+                {
+                    return false;
+                }
+                existingUser.Email = user.Email;
+            }
             if (user.Password != null) existingUser.Password = user.Password;
             if (user.BrandName != null) existingUser.BrandName = user.BrandName;
             if (user.BrandCategory != null) existingUser.BrandCategory = user.BrandCategory;
@@ -101,5 +109,31 @@ namespace inflan_api.Services
 
             throw new Exception("Failed to generate a unique username.");
         }
+        public async Task<string?> SaveOrUpdateProfilePictureAsync(int userId, IFormFile? file)
+        {
+            if (file == null || file.Length == 0)
+                return null;
+
+            var uploadsFolder = Path.Combine("wwwroot", "uploads");
+            if (!Directory.Exists(uploadsFolder))
+                Directory.CreateDirectory(uploadsFolder);
+            
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png" };
+            var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+            if (!allowedExtensions.Contains(extension))
+                return null;
+
+            var fileName = $"{userId}{extension}";
+            var filePath = Path.Combine(uploadsFolder, fileName);
+
+            using (var stream = new FileStream(filePath, FileMode.Create))
+            {
+                await file.CopyToAsync(stream);
+            }
+
+            return $"/uploads/{fileName}";
+        }
+
     }
 }

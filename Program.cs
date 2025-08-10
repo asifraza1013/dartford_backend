@@ -29,6 +29,9 @@ namespace inflan_api
             builder.Services.AddTransient<IInfluencerService, InfluencerService>();
             builder.Services.AddTransient<IPlanRepository, PlanRepository>();
             builder.Services.AddTransient<IPlanService, PlanService>();
+            // builder.Services.AddTransient<ITransactionRepository, TransactionRepository>();
+            builder.Services.AddTransient<ICampaignRepository, CampaignRepository>();
+            builder.Services.AddTransient<ICampaignService, CampaignService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -114,7 +117,7 @@ namespace inflan_api
             app.UseAuthentication();
             app.UseAuthorization();
 
-
+            app.UseStaticFiles();
             app.MapControllers();
 
             var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";

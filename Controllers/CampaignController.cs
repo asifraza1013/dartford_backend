@@ -36,7 +36,8 @@ namespace inflan_api.Controllers
 
         [HttpPost("createNewCampaign")]
         [Authorize]
-        public async Task<IActionResult> CreateCampaign([FromBody] Campaign campaign)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> CreateCampaign([FromForm] Campaign campaign, IFormFile? file)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
@@ -45,17 +46,31 @@ namespace inflan_api.Controllers
             int userId = int.Parse(userIdClaim.Value);
             campaign.BrandId = userId;
             var created = await _campaignService.CreateCampaign(campaign);
+            if(created == null) return StatusCode(400, new { message = "Campaign not created. Plan missing." });
+            var relativePath = await _campaignService.SaveCampaignDocumentAsync(file, created.Id);
+
+            if (relativePath != null)
+            {
+                created.InstructionDocuments = relativePath;
+                var updated = await _campaignService.UpdateCampaign(created.Id, created);
+                if (!updated)
+                    return StatusCode(500, new { message = "Could Not add instruction document. Campaign Created Successfully" });
+            }
             return StatusCode(200, new { message = "Campaign created", campaign = created });
         }
 
         [HttpPut("updateCampaign/{id}")]
-        public async Task<IActionResult> UpdateCampaign(int id, [FromBody] Campaign campaign)
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UpdateCampaign(int id, [FromForm] Campaign campaign,  IFormFile? file)
         {
+            var newImagePath = await _campaignService.SaveCampaignDocumentAsync(file, id);
+            if (newImagePath != null)
+                campaign.InstructionDocuments = newImagePath;
             var updated = await _campaignService.UpdateCampaign(id, campaign);
             if (!updated)
                 return StatusCode(500, new { message = "Campaign update failed" });
 
-            return NoContent();
+            return StatusCode(200, new {message = "Campaign update successful"});
         }
         [HttpGet("getInfluencerCampaigns/{influencerId}")]
         public async Task<IActionResult> GetInfluencerCampaigns(int influencerId)

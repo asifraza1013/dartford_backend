@@ -24,9 +24,11 @@ public class CampaignService : ICampaignService
         return await _campaignRepository.GetById(id);
     }
 
-    public async Task<Campaign> CreateCampaign(Campaign campaign)
+    public async Task<Campaign?> CreateCampaign(Campaign campaign)
     {
         var plan = await _planService.GetPlanById(campaign.PlanId);
+        if (plan == null)
+            return null;
         campaign.Currency = plan.Currency;
         campaign.Amount = plan.Price * plan.NumberOfMonths;
         campaign.CampaignStartDate = DateOnly.FromDateTime(DateTime.Now);
@@ -65,5 +67,31 @@ public class CampaignService : ICampaignService
         var all = await _campaignRepository.GetCampaignsByInfluencerId(influencerId);
         return all.Where(c => c.CampaignStatus == campaignStatus);
     }
+    public async Task<string?> SaveCampaignDocumentAsync(IFormFile? file, int campaignId)
+    {
+        if (file == null || file.Length == 0)
+            return null;
+
+        var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "campaignDocs");
+        if (!Directory.Exists(uploadsFolder))
+            Directory.CreateDirectory(uploadsFolder);
+        
+        var allowedExtensions = new[] { ".rtf", ".doc", ".docx", ".txt" };
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+
+        if (!allowedExtensions.Contains(extension))
+            return null;
+        
+        var fileName = $"{campaignId}{extension}";
+        var filePath = Path.Combine(uploadsFolder, fileName);
+
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        return $"/campaignDocs/{fileName}";
+    }
+
 
 }

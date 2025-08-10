@@ -20,6 +20,8 @@
 
   <ItemGroup>
     <Folder Include="Migrations\" />
+    <Folder Include="wwwroot\campaignDocs\" />
+    <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
 </Project>

@@ -58,7 +58,7 @@ namespace inflan_api.Controllers
                     {
                         token,
                         message = Message.BRAND_INFO_NOT_FILLED,
-                        missingStep = "Goals or Category missing"
+                        missingStep = "Goals, Sector or Category missing"
                     });
                 }
             }else if (user.UserType == (int)UserType.INFLUENCER)
@@ -88,13 +88,7 @@ namespace inflan_api.Controllers
             return Ok(new
             {
                 Token = token,
-                User = new
-                {
-                    user.Id,
-                    user.Name,
-                    user.Email,
-                    user.UserName
-                }
+                User = user
             });
         }
 

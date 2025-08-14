@@ -68,6 +68,28 @@ namespace inflan_api.Controllers
 
             return Ok(campaigns);
         }
+        [HttpGet("getBrandCampaigns/{brandId}")]
+        public async Task<IActionResult> GetBrandCampaigns(int brandId)
+        {
+            var campaigns = await _campaignService.GetCampaignsByBrandId(brandId);
+
+            if (!campaigns.Any())
+                return StatusCode(404, new { message = "No campaigns found for this brand" });
+
+            return Ok(campaigns);
+        }
+        
+        [HttpGet("getCompletedPaymentBrandCampaigns/{brandId}")]
+        public async Task<IActionResult> GetCompletedPaymentBrandCampaigns(int brandId)
+        {
+            var campaigns = await _campaignService.GetCompletedPaymentCampaignsByBrandId(brandId);
+
+            if (!campaigns.Any())
+                return StatusCode(404, new { message = "No completed payment campaigns found for this influencer" });
+
+            return Ok(campaigns);
+        }
+        
         [HttpGet("getInfluencerCampaignsByStatusFilter/{influencerId}/{campaignStatus}")]
         public async Task<IActionResult> GetInfluencerCampaignsByStatus(int influencerId, int campaignStatus)
         {
@@ -86,10 +108,21 @@ namespace inflan_api.Controllers
             var filePaths = await _campaignService.SaveCampaignDocumentsAsync(files);
 
             if (filePaths.Count == 0)
-                return BadRequest(new { message = "No valid files uploaded." });
+                return StatusCode(400, new { message = "No valid files uploaded." });
 
             return Ok(new { message = "Files uploaded successfully.", files = filePaths });
         }
+        [HttpDelete("deleteCampaignDocuments")]
+        public async Task<IActionResult> DeleteCampaignDocuments([FromBody] List<string> documentPaths)
+        {
+            var result = await _campaignService.DeleteCampaignDocumentsAsync(documentPaths);
+
+            if (!result)
+                return StatusCode(400, new { message = "Some or all documents could not be deleted." });
+
+            return Ok(new { message = "Documents deleted successfully." });
+        }
+
 
     }
 }

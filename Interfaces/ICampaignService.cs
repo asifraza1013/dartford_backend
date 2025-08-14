@@ -9,9 +9,12 @@ public interface ICampaignService
     Task<Campaign?> CreateCampaign(Campaign campaign);
     Task<bool> UpdateCampaign(int id, Campaign campaign);
     Task<bool> DeleteCampaign(int id);
-    Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId);
-
+    Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId); 
+    Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId);
     Task<IEnumerable<Campaign>> GetCampaignsByInfluencerAndStatus(int influencerId, int campaignStatus);
     Task<List<string>> SaveCampaignDocumentsAsync(List<IFormFile> files);
+    Task<IEnumerable<Campaign>> GetCompletedPaymentCampaignsByBrandId(int brandId);
+    Task<bool> DeleteCampaignDocumentsAsync(List<string> filePaths);
+
 
 }

@@ -52,5 +52,11 @@ public class CampaignRepository : ICampaignRepository
             .Where(c => c.InfluencerId == influencerId)
             .ToListAsync();
     }
+    public async Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId)
+    {
+        return await _context.Campaigns
+            .Where(c => c.BrandId == brandId)
+            .ToListAsync();
+    }
 
 }

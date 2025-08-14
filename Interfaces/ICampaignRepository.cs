@@ -10,5 +10,6 @@ public interface ICampaignRepository
     Task Update(Campaign campaign);
     Task Delete(int id);
     Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId);
+    Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId);
 
 }

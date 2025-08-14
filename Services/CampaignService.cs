@@ -67,6 +67,19 @@ public class CampaignService : ICampaignService
         return campaigns.Where(c => c.PaymentStatus == (int)PaymentStatus.COMPLETED).ToList().OrderBy(c => c.CampaignStartDate);
 
     }
+    public async Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId)
+    {
+        var campaigns = await _campaignRepository.GetCampaignsByBrandId(brandId);
+        return campaigns.OrderBy(c => c.CampaignStartDate);
+
+    }
+    public async Task<IEnumerable<Campaign>> GetCompletedPaymentCampaignsByBrandId(int brandId)
+    {
+        var campaigns = await _campaignRepository.GetCampaignsByBrandId(brandId);
+        return campaigns.Where(c => c.PaymentStatus == (int)PaymentStatus.COMPLETED).ToList().OrderBy(c => c.CampaignStartDate);
+
+    }
+    
     public async Task<IEnumerable<Campaign>> GetCampaignsByInfluencerAndStatus(int influencerId, int campaignStatus)
     {
         var all = await _campaignRepository.GetCampaignsByInfluencerId(influencerId);
@@ -80,7 +93,6 @@ public class CampaignService : ICampaignService
         if (files == null || !files.Any())
             return savedPaths;
 
-        // Folder path: wwwroot/campaignDocs
         var campaignFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "campaignDocs");
         if (!Directory.Exists(campaignFolder))
             Directory.CreateDirectory(campaignFolder);
@@ -111,6 +123,32 @@ public class CampaignService : ICampaignService
         return savedPaths;
     }
 
+    public async Task<bool> DeleteCampaignDocumentsAsync(List<string> filePaths)
+    {
+        if (filePaths == null || filePaths.Count == 0)
+            return false;
+
+        bool allDeleted = true;
+
+        foreach (var relativePath in filePaths)
+        {
+            try
+            {
+                var fullPath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relativePath.TrimStart('/'));
+
+                if (File.Exists(fullPath))
+                    File.Delete(fullPath);
+                else
+                    allDeleted = false;
+            }
+            catch
+            {
+                allDeleted = false;
+            }
+        }
+
+        return allDeleted;
+    }
 
 
 }

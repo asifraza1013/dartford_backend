@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "10000:8080"  # Map EC2 port 10000 to container port 8080
+    depends_on:
+      - postgres
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Database=inflan_db;Username=postgres;Password=${DB_PASSWORD:-postgres123}
+      - Jwt__Key=${JWT_KEY:-YourSecretKeyForJWTTokenGenerationShouldBeAtLeast32Characters!}
+    volumes:
+      - ./wwwroot:/app/wwwroot
+      - ./logs:/app/logs
+    networks:
+      - inflan-network
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: inflan_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - inflan-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  inflan-network:
+    driver: bridge

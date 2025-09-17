@@ -9,9 +9,9 @@ namespace inflan_api.Repositories
     {
         private readonly InflanDBContext _context;
 
-        public UserRepository()
+        public UserRepository(InflanDBContext context)
         {
-            _context = new InflanDBContext();
+            _context = context;
         }
 
         public async Task<IEnumerable<User>> GetAll()

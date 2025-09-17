@@ -9,9 +9,9 @@ public class CampaignRepository : ICampaignRepository
 {
     private readonly InflanDBContext _context;
 
-    public CampaignRepository()
+    public CampaignRepository(InflanDBContext context)
     {
-        _context = new InflanDBContext();
+        _context = context;
     }
 
     public async Task<IEnumerable<Campaign>> GetAll()

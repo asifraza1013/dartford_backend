@@ -9,9 +9,9 @@ public class PlanRepository : IPlanRepository
 {
     private readonly InflanDBContext _context;
 
-    public PlanRepository()
+    public PlanRepository(InflanDBContext context)
     {
-        _context = new InflanDBContext();
+        _context = context;
     }
 
     public async Task<IEnumerable<Plan>> GetAll()

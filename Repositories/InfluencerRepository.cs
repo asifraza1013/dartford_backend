@@ -9,9 +9,9 @@ namespace inflan_api.Repositories
     {
         private readonly InflanDBContext _context;
 
-        public InfluencerRepository()
+        public InfluencerRepository(InflanDBContext context)
         {
-            _context = new InflanDBContext();
+            _context = context;
         }
 
         private async Task<IEnumerable<InfluencerUserModel>> getExplicitInfluencers()

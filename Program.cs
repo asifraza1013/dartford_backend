@@ -17,6 +17,10 @@ namespace inflan_api
             var builder = WebApplication.CreateBuilder(args);
 
             // Add services to the container.
+            
+            // Add database context
+            builder.Services.AddDbContext<InflanDBContext>(options =>
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -95,6 +99,13 @@ namespace inflan_api
 
             var app = builder.Build();
 
+            // Run database migrations on startup
+            using (var scope = app.Services.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<InflanDBContext>();
+                context.Database.Migrate();
+            }
+
             // Configure the HTTP request pipeline.
             // if (app.Environment.IsDevelopment())
             // {
@@ -112,7 +123,7 @@ namespace inflan_api
             app.UseCors("AllowAll");
 
 
-            app.UseHttpsRedirection();
+            // Skip HTTPS redirection in Docker development
 
             app.UseAuthentication();
             app.UseAuthorization();
@@ -120,7 +131,7 @@ namespace inflan_api
             app.UseStaticFiles();
             app.MapControllers();
 
-            var port = Environment.GetEnvironmentVariable("PORT") ?? "5000";
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
             app.Urls.Add($"http://*:{port}");
             app.Run();
         }

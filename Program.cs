@@ -6,7 +6,10 @@ using System.Text;
 using inflan_api.Interfaces;
 using inflan_api.Repositories;
 using inflan_api.Services;
+using inflan_api.Models;
 using Microsoft.OpenApi.Models;
+using Polly;
+using Polly.Extensions.Http;
 
 namespace inflan_api
 {
@@ -21,6 +24,14 @@ namespace inflan_api
             // Add database context
             builder.Services.AddDbContext<InflanDBContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+            
+            // Configure Social Blade settings
+            builder.Services.Configure<SocialBladeConfig>(
+                builder.Configuration.GetSection(SocialBladeConfig.SectionName));
+            
+            // Configure Follower Sync settings
+            builder.Services.Configure<FollowerSyncConfig>(
+                builder.Configuration.GetSection(FollowerSyncConfig.SectionName));
 
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -36,6 +47,22 @@ namespace inflan_api
             // builder.Services.AddTransient<ITransactionRepository, TransactionRepository>();
             builder.Services.AddTransient<ICampaignRepository, CampaignRepository>();
             builder.Services.AddTransient<ICampaignService, CampaignService>();
+            
+            // Register follower count service with HTTP client
+            builder.Services.AddHttpClient<IFollowerCountService, SocialBladeFollowerService>()
+                .AddPolicyHandler(HttpPolicyExtensions
+                    .HandleTransientHttpError()
+                    .OrResult(msg => !msg.IsSuccessStatusCode)
+                    .WaitAndRetryAsync(
+                        3,
+                        retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                        onRetry: (outcome, timespan, retryCount, context) =>
+                        {
+                            Console.WriteLine($"HTTP Retry {retryCount} after {timespan} seconds");
+                        }));
+            
+            // Register background service for weekly sync
+            builder.Services.AddHostedService<FollowerSyncBackgroundService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

@@ -16,13 +16,16 @@ namespace inflan_api.Controllers
     {
         private readonly IInfluencerService _influencerService;
         private readonly IUserService _userService;
-        private readonly string authToken;
+        private readonly IFollowerCountService _followerCountService;
 
-        public InfluencerController(IInfluencerService influencerService,  IUserService userService, IConfiguration configuration)
+        public InfluencerController(
+            IInfluencerService influencerService,  
+            IUserService userService, 
+            IFollowerCountService followerCountService)
         {
             _influencerService = influencerService;
             _userService = userService;
-            authToken = "9375|OHtVRglGLaJYskZNGHOQPM9oJ6S5wRyj7UTBnCIW";
+            _followerCountService = followerCountService;
         }
 
         [HttpGet("getAllInfluencers")]
@@ -49,37 +52,82 @@ namespace inflan_api.Controllers
 
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
-            var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", authToken);
-
-            var twitterRequest = httpClient.PostAsJsonAsync(
-                "https://zylalabs.com/api/9043/twitter+user+profiles+extract+api/16280/get+follower+count+by+username",
-                new { username = influencer.Twitter });
-
-            var tiktokRequest = httpClient.PostAsJsonAsync(
-                "https://zylalabs.com/api/9008/tiktok+influencer+profile+data+api/16153/get+ranking+and+followers+by+username",
-                new { username = influencer.TikTok });
-
-            var instagramRequest = httpClient.PostAsJsonAsync(
-                "https://zylalabs.com/api/9059/instagram+influencer+insights+api/16324/get+influencer+profile+by+username",
-                new { influencer_username = influencer.Instagram });
-
-            var responses = await Task.WhenAll(twitterRequest, tiktokRequest, instagramRequest);
             
-            var twitterJson = await _influencerService.SafeParseJsonAsync(responses[0], "Twitter");
-            var tiktokJson = await _influencerService.SafeParseJsonAsync(responses[1], "TikTok");
-            var instagramJson = await _influencerService.SafeParseJsonAsync(responses[2], "Instagram");
+            // Get follower counts from the follower service (currently Social Blade)
+            var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
+                instagramUsername: influencer.Instagram,
+                twitterUsername: influencer.Twitter,
+                tiktokUsername: influencer.TikTok,
+                facebookUsername: influencer.Facebook
+            );
 
-            if (twitterJson.error != null) return StatusCode(400, new { message = twitterJson.error });
-            if (tiktokJson.error != null) return StatusCode(400, new { message = tiktokJson.error });
-            if (instagramJson.error != null) return StatusCode(400, new { message = instagramJson.error });
+            // Check for errors and set follower counts
+            var errors = new List<string>();
             
-            influencer.TwitterFollower = _influencerService.ParseFollowersFromTwitter(twitterJson.data);
-
-            influencer.TikTokFollower = _influencerService.ParseFollowersFromTikTok(tiktokJson.data);
-
-            influencer.InstagramFollower = _influencerService.ParseFollowersFromInstagram(instagramJson.data);
-            influencer.FacebookFollower = new Random().Next(10000, 1000000);
+            // Instagram
+            if (followerResults.ContainsKey("Instagram"))
+            {
+                var result = followerResults["Instagram"];
+                if (result.Success)
+                {
+                    influencer.InstagramFollower = (int)result.Followers;
+                }
+                else if (!string.IsNullOrEmpty(influencer.Instagram))
+                {
+                    errors.Add($"Instagram: {result.ErrorMessage}");
+                }
+            }
+            
+            // Twitter
+            if (followerResults.ContainsKey("Twitter"))
+            {
+                var result = followerResults["Twitter"];
+                if (result.Success)
+                {
+                    influencer.TwitterFollower = (int)result.Followers;
+                }
+                else if (!string.IsNullOrEmpty(influencer.Twitter))
+                {
+                    errors.Add($"Twitter: {result.ErrorMessage}");
+                }
+            }
+            
+            // TikTok
+            if (followerResults.ContainsKey("TikTok"))
+            {
+                var result = followerResults["TikTok"];
+                if (result.Success)
+                {
+                    influencer.TikTokFollower = (int)result.Followers;
+                }
+                else if (!string.IsNullOrEmpty(influencer.TikTok))
+                {
+                    errors.Add($"TikTok: {result.ErrorMessage}");
+                }
+            }
+            
+            // Facebook
+            if (followerResults.ContainsKey("Facebook"))
+            {
+                var result = followerResults["Facebook"];
+                if (result.Success)
+                {
+                    influencer.FacebookFollower = (int)result.Followers;
+                }
+                else if (!string.IsNullOrEmpty(influencer.Facebook))
+                {
+                    errors.Add($"Facebook: {result.ErrorMessage}");
+                }
+            }
+            
+            // If any platform failed to get follower count, log warnings but continue
+            if (errors.Any())
+            {
+                foreach (var error in errors)
+                {
+                    Console.WriteLine($"Warning: {error}");
+                }
+            }
             var created = await _influencerService.CreateInfluencer(influencer);
             return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});
         }
@@ -133,5 +181,6 @@ namespace inflan_api.Controllers
 
             return NoContent();
         }
+        
     }
 }

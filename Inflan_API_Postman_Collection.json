@@ -1,0 +1,924 @@
+{
+  "info": {
+    "name": "Inflan API Collection",
+    "description": "Complete API collection for Inflan Web API with Social Blade integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "inflan-api-collection"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{auth_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.inflan.com",
+      "type": "string"
+    },
+    {
+      "key": "auth_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "🔐 Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"userName\": \"johndoe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"brandName\": \"John's Brand\",\n  \"brandCategory\": \"fashion\",\n  \"brandSector\": \"retail\",\n  \"goals\": [\"exposure\", \"reach\"],\n  \"userType\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Auth/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Auth",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Auth/getUser/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Auth",
+                "getUser",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "👤 User Management",
+      "item": [
+        {
+          "name": "Get All Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/User/getAllUsers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "getAllUsers"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/User/getCurrentUser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "getCurrentUser"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get User By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/User/getUserById/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "getUserById",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create New User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Smith\",\n  \"userName\": \"janesmith\",\n  \"email\": \"jane@example.com\",\n  \"password\": \"password123\",\n  \"brandName\": \"Jane's Fashion\",\n  \"brandCategory\": \"fashion\",\n  \"brandSector\": \"clothing\",\n  \"goals\": [\"exposure\", \"results\"],\n  \"userType\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/User/createNewUser",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "createNewUser"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "Name",
+                  "value": "Updated Name",
+                  "type": "text"
+                },
+                {
+                  "key": "Email",
+                  "value": "updated@example.com",
+                  "type": "text"
+                },
+                {
+                  "key": "BrandName",
+                  "value": "Updated Brand",
+                  "type": "text"
+                },
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/User/updateUser/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "updateUser",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Profile Picture",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/User/uploadProfilePicture",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "uploadProfilePicture"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/User/deleteUser/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "User",
+                "deleteUser",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🌟 Influencer Management (Social Blade)",
+      "item": [
+        {
+          "name": "Get All Influencers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/getAllInfluencers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "getAllInfluencers"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Influencer By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/getInfluencerById/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "getInfluencerById",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Influencer with Social Blade",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"twitter\": \"elonmusk\",\n  \"instagram\": \"elonmusk\",\n  \"facebook\": \"elonmusk\",\n  \"tikTok\": \"elonmusk\",\n  \"bio\": \"Tech entrepreneur and CEO\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/createNewInfluencer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "createNewInfluencer"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create Influencer (Test Mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"twitter\": \"testuser\",\n  \"instagram\": \"testuser\",\n  \"facebook\": \"testuser\",\n  \"tikTok\": \"testuser\",\n  \"bio\": \"Test influencer profile using @socialblade test account\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/createNewInfluencer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "createNewInfluencer"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Influencer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Name\",\n  \"userName\": \"updatedusername\",\n  \"email\": \"updated@example.com\",\n  \"bio\": \"Updated bio for influencer\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/updateInfluencer/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "updateInfluencer",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Influencer",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Influencer/deleteInfluencer/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Influencer",
+                "deleteInfluencer",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "📊 Campaign Management",
+      "item": [
+        {
+          "name": "Get All Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/getAllCampaigns",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "getAllCampaigns"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Campaign By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/getCampaignById/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "getCampaignById",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create New Campaign",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": 1,\n  \"campaignName\": \"Summer Fashion Campaign\",\n  \"campaignStartDate\": \"2025-06-01\",\n  \"campaignEndDate\": \"2025-08-31\",\n  \"brandId\": 1,\n  \"campaignStatus\": 1,\n  \"influencerId\": 1,\n  \"currency\": \"USD\",\n  \"amount\": 5000.00,\n  \"paymentStatus\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/createNewCampaign",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "createNewCampaign"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Campaign",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planId\": 1,\n  \"campaignName\": \"Updated Campaign Name\",\n  \"campaignStartDate\": \"2025-07-01\",\n  \"campaignEndDate\": \"2025-09-30\",\n  \"brandId\": 1,\n  \"campaignStatus\": 2,\n  \"influencerId\": 1,\n  \"currency\": \"USD\",\n  \"amount\": 7500.00,\n  \"paymentStatus\": 2\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/updateCampaign/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "updateCampaign",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Influencer Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/getInfluencerCampaigns/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "getInfluencerCampaigns",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Influencer Campaigns By Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/getInfluencerCampaignsByStatusFilter/1/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "getInfluencerCampaignsByStatusFilter",
+                "1",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Upload Campaign Documents",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                },
+                {
+                  "key": "files",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Campaign/uploadCampaignDocuments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Campaign",
+                "uploadCampaignDocuments"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💰 Plan Management",
+      "item": [
+        {
+          "name": "Get All Plans",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Plan/getAllPlans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "getAllPlans"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plan By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Plan/getPlanById/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "getPlanById",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Create New Plan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planName\": \"Premium Influencer Plan\",\n  \"currency\": \"USD\",\n  \"interval\": \"monthly\",\n  \"price\": 99.99,\n  \"numberOfMonths\": 12,\n  \"planDetails\": [\n    \"Access to premium influencers\",\n    \"Advanced analytics\",\n    \"Priority support\"\n  ],\n  \"status\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Plan/createNewPlan",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "createNewPlan"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Update Plan",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"planName\": \"Updated Premium Plan\",\n  \"currency\": \"USD\",\n  \"interval\": \"monthly\",\n  \"price\": 149.99,\n  \"numberOfMonths\": 12,\n  \"planDetails\": [\n    \"Access to top influencers\",\n    \"Advanced analytics dashboard\",\n    \"24/7 priority support\",\n    \"Custom reporting\"\n  ],\n  \"status\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Plan/updatePlan/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "updatePlan",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Plan",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Plan/deletePlan/1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "deletePlan",
+                "1"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current Influencer Plans",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/Plan/getCurrentInfluencerPlans",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "getCurrentInfluencerPlans"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Plans By Influencer User ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/Plan/getPlansByInfluencerUserId/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Plan",
+                "getPlansByInfluencerUserId",
+                "{{user_id}}"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "💳 Payment Management",
+      "item": [
+        {
+          "name": "Process Payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"campaignId\": 1,\n  \"paymentMethodId\": \"pm_1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/Payment/charge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "Payment",
+                "charge"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "🧪 Testing & Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Swagger Documentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/swagger/index.html",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger",
+                "index.html"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get Swagger JSON",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/swagger/v1/swagger.json",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger",
+                "v1",
+                "swagger.json"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Auto-set auth token from login response",
+          "if (pm.request.url.path.includes('login')) {",
+          "    pm.sendRequest(pm.request, function (err, response) {",
+          "        if (response.json().token) {",
+          "            pm.collectionVariables.set('auth_token', response.json().token);",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ]
+}

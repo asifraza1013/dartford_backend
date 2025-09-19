@@ -31,7 +31,7 @@ namespace inflan_api.Services
 
             return 0;
         }
-        public int ParseFollowersFromTwitter(JsonElement json)
+        public int ParseFollowersFromYouTube(JsonElement json)
         {
             var count = json.GetProperty("follower_count").GetDouble();
             var unit = json.GetProperty("unit").GetString()?.ToLower();
@@ -126,7 +126,7 @@ namespace inflan_api.Services
                 if (json.TryGetProperty("items_found", out var itemsFoundProp) && itemsFoundProp.GetInt32() == 0)
                     return (default, $"{platform}:Invalid user name. No user found.");
 
-                if (platform == "Twitter" &&
+                if (platform == "YouTube" &&
                     (!json.TryGetProperty("follower_count", out var countProp) || countProp.ValueKind == JsonValueKind.Null))
                     return (default, $"{platform}:Invalid user name. Follower count is missing or null.");
 

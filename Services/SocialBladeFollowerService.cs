@@ -291,7 +291,6 @@ namespace inflan_api.Services
                                     break;
                                 case "instagram":
                                 case "tiktok":
-                                case "twitter":
                                 case "facebook":
                                     // These platforms typically use followers field
                                     if (total.TryGetProperty("followers", out var followersProp))

@@ -11,7 +11,7 @@ namespace inflan_api.Interfaces
         Task<bool> UpdateInfluencer(int userId, Influencer influencer);
         Task<bool> DeleteInfluencer(int id);
         Task<Influencer?> GetInfluencerByUserId(int userId);
-        int ParseFollowersFromTwitter(JsonElement json);
+        int ParseFollowersFromYouTube(JsonElement json);
         int ParseFollowersFromTikTok(JsonElement json);
         int ParseFollowersFromInstagram(JsonElement json);
         int ParseFollowerString(string? value);

@@ -362,7 +362,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"twitter\": \"elonmusk\",\n  \"instagram\": \"elonmusk\",\n  \"facebook\": \"elonmusk\",\n  \"tikTok\": \"elonmusk\",\n  \"bio\": \"Tech entrepreneur and CEO\"\n}"
+              "raw": "{\n  \"youtube\": \"elonmusk\",\n  \"instagram\": \"elonmusk\",\n  \"facebook\": \"elonmusk\",\n  \"tikTok\": \"elonmusk\",\n  \"bio\": \"Tech entrepreneur and CEO\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/Influencer/createNewInfluencer",
@@ -394,7 +394,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"twitter\": \"testuser\",\n  \"instagram\": \"testuser\",\n  \"facebook\": \"testuser\",\n  \"tikTok\": \"testuser\",\n  \"bio\": \"Test influencer profile using @socialblade test account\"\n}"
+              "raw": "{\n  \"youtube\": \"testuser\",\n  \"instagram\": \"testuser\",\n  \"facebook\": \"testuser\",\n  \"tikTok\": \"testuser\",\n  \"bio\": \"Test influencer profile using @socialblade test account\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/Influencer/createNewInfluencer",

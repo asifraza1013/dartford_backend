@@ -31,8 +31,10 @@ echo "Building application..."
 dotnet restore
 dotnet build -c Release
 
-# Run database migrations
-echo "Running database migrations..."
+# Install EF tools and run database migrations
+echo "Installing EF tools and running database migrations..."
+dotnet tool install --global dotnet-ef --version 8.0.0 || true
+export PATH="$PATH:/home/ec2-user/.dotnet/tools"
 dotnet ef database update
 
 # Start application

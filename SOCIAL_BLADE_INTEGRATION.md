@@ -33,10 +33,12 @@ This document outlines the professional, service-oriented implementation for int
 ### 🚀 Create Influencer (Updated)
 **Endpoint**: `POST /api/influencer/createNewInfluencer`
 
+**Note**: The `twitter` field now accepts YouTube channel names and fetches YouTube subscriber data via Social Blade API. Data is stored in the same database fields for consistency.
+
 **Request Body**:
 ```json
 {
-  "twitter": "username",
+  "twitter": "youtube_channel_name",
   "instagram": "username", 
   "facebook": "username",
   "tikTok": "username",
@@ -51,7 +53,7 @@ This document outlines the professional, service-oriented implementation for int
   "influencer": {
     "id": 1,
     "userId": 123,
-    "twitter": "username",
+    "twitter": "youtube_channel_name",
     "instagram": "username",
     "facebook": "username",
     "tikTok": "username",

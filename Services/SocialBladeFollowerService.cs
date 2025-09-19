@@ -90,12 +90,12 @@ namespace inflan_api.Services
 
             try
             {
-                var response = await MakeSocialBladeRequestAsync("twitter", username);
+                var response = await MakeSocialBladeRequestAsync("youtube", username);
                 return ParseSocialBladeResponse(response, "Twitter");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Error fetching Twitter followers for {username}");
+                _logger.LogError(ex, $"Error fetching YouTube data for {username} (displayed as Twitter)");
                 return new FollowerCountResult
                 {
                     Success = false,
@@ -309,7 +309,6 @@ namespace inflan_api.Services
 
                 // Extract follower count based on platform
                 long followers = 0;
-                DateTime? lastUpdated = null;
                 var additionalData = new Dictionary<string, object>();
 
                 if (root.TryGetProperty("data", out var data))

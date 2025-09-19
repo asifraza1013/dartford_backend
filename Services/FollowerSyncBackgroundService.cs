@@ -98,7 +98,7 @@ namespace inflan_api.Services
                             // Get updated follower counts
                             var followerResults = await followerCountService.GetAllPlatformFollowersAsync(
                                 instagramUsername: influencer.Instagram,
-                                twitterUsername: influencer.Twitter,
+                                youtubeChannelId: influencer.YouTube,
                                 tiktokUsername: influencer.TikTok,
                                 facebookUsername: influencer.Facebook
                             );
@@ -112,9 +112,9 @@ namespace inflan_api.Services
                                 hasUpdates = true;
                             }
                             
-                            if (followerResults.ContainsKey("Twitter") && followerResults["Twitter"].Success)
+                            if (followerResults.ContainsKey("YouTube") && followerResults["YouTube"].Success)
                             {
-                                influencer.TwitterFollower = (int)followerResults["Twitter"].Followers;
+                                influencer.TwitterFollower = (int)followerResults["YouTube"].Followers;
                                 hasUpdates = true;
                             }
                             

@@ -6,16 +6,14 @@ namespace inflan_api.Interfaces
     public interface IFollowerCountService
     {
         Task<FollowerCountResult> GetInstagramFollowersAsync(string username);
-        Task<FollowerCountResult> GetTwitterFollowersAsync(string username);
+        Task<FollowerCountResult> GetYouTubeFollowersAsync(string channelId);
         Task<FollowerCountResult> GetTikTokFollowersAsync(string username);
         Task<FollowerCountResult> GetFacebookFollowersAsync(string username);
-        Task<FollowerCountResult> GetYouTubeFollowersAsync(string channelId);
         Task<Dictionary<string, FollowerCountResult>> GetAllPlatformFollowersAsync(
             string? instagramUsername = null,
-            string? twitterUsername = null,
+            string? youtubeChannelId = null,
             string? tiktokUsername = null,
-            string? facebookUsername = null,
-            string? youtubeChannelId = null
+            string? facebookUsername = null
         );
     }
 

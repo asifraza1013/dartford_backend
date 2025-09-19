@@ -31,12 +31,6 @@ echo "Building application..."
 dotnet restore
 dotnet build -c Release
 
-# Install EF tools and run database migrations
-echo "Installing EF tools and running database migrations..."
-dotnet tool install --global dotnet-ef --version 8.0.0 || true
-export PATH="$PATH:/home/ec2-user/.dotnet/tools"
-dotnet ef database update
-
 # Start application
 echo "Starting API..."
 nohup dotnet run --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &

@@ -76,34 +76,6 @@ namespace inflan_api.Services
             }
         }
 
-        public async Task<FollowerCountResult> GetTwitterFollowersAsync(string username)
-        {
-            if (string.IsNullOrWhiteSpace(username))
-            {
-                return new FollowerCountResult
-                {
-                    Success = false,
-                    Platform = "Twitter",
-                    ErrorMessage = "Username cannot be empty"
-                };
-            }
-
-            try
-            {
-                var response = await MakeSocialBladeRequestAsync("youtube", username);
-                return ParseSocialBladeResponse(response, "Twitter");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error fetching YouTube data for {username} (displayed as Twitter)");
-                return new FollowerCountResult
-                {
-                    Success = false,
-                    Platform = "Twitter",
-                    ErrorMessage = ex.Message
-                };
-            }
-        }
 
         public async Task<FollowerCountResult> GetTikTokFollowersAsync(string username)
         {
@@ -194,10 +166,9 @@ namespace inflan_api.Services
 
         public async Task<Dictionary<string, FollowerCountResult>> GetAllPlatformFollowersAsync(
             string? instagramUsername = null,
-            string? twitterUsername = null,
+            string? youtubeChannelId = null,
             string? tiktokUsername = null,
-            string? facebookUsername = null,
-            string? youtubeChannelId = null)
+            string? facebookUsername = null)
         {
             var results = new Dictionary<string, FollowerCountResult>();
             var tasks = new List<Task>();
@@ -211,11 +182,11 @@ namespace inflan_api.Services
                 }));
             }
 
-            if (!string.IsNullOrWhiteSpace(twitterUsername))
+            if (!string.IsNullOrWhiteSpace(youtubeChannelId))
             {
                 tasks.Add(Task.Run(async () =>
                 {
-                    results["Twitter"] = await GetTwitterFollowersAsync(twitterUsername);
+                    results["YouTube"] = await GetYouTubeFollowersAsync(youtubeChannelId);
                 }));
             }
 
@@ -232,14 +203,6 @@ namespace inflan_api.Services
                 tasks.Add(Task.Run(async () =>
                 {
                     results["Facebook"] = await GetFacebookFollowersAsync(facebookUsername);
-                }));
-            }
-
-            if (!string.IsNullOrWhiteSpace(youtubeChannelId))
-            {
-                tasks.Add(Task.Run(async () =>
-                {
-                    results["YouTube"] = await GetYouTubeFollowersAsync(youtubeChannelId);
                 }));
             }
 

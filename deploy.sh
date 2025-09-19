@@ -31,6 +31,10 @@ echo "Building application..."
 dotnet restore
 dotnet build -c Release
 
+# Run database migrations
+echo "Running database migrations..."
+dotnet ef database update
+
 # Start application
 echo "Starting API..."
 nohup dotnet run --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &

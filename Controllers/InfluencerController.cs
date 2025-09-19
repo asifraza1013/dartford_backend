@@ -56,7 +56,7 @@ namespace inflan_api.Controllers
             // Get follower counts from the follower service (currently Social Blade)
             var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
                 instagramUsername: influencer.Instagram,
-                twitterUsername: influencer.Twitter, // This will now contain YouTube channel name
+                twitterUsername: influencer.YouTube, // Use YouTube channel name
                 tiktokUsername: influencer.TikTok,
                 facebookUsername: influencer.Facebook
             );
@@ -86,7 +86,7 @@ namespace inflan_api.Controllers
                 {
                     influencer.TwitterFollower = (int)result.Followers;
                 }
-                else if (!string.IsNullOrEmpty(influencer.Twitter))
+                else if (!string.IsNullOrEmpty(influencer.YouTube))
                 {
                     errors.Add($"YouTube: {result.ErrorMessage}");
                 }

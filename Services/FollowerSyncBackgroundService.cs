@@ -114,7 +114,7 @@ namespace inflan_api.Services
                             
                             if (followerResults.ContainsKey("YouTube") && followerResults["YouTube"].Success)
                             {
-                                influencer.TwitterFollower = (int)followerResults["YouTube"].Followers;
+                                influencer.YouTubeFollower = (int)followerResults["YouTube"].Followers;
                                 hasUpdates = true;
                             }
                             

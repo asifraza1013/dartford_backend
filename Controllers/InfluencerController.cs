@@ -78,13 +78,13 @@ namespace inflan_api.Controllers
                 }
             }
             
-            // YouTube (stored in Twitter field for database compatibility)
+            // YouTube
             if (followerResults.ContainsKey("YouTube"))
             {
                 var result = followerResults["YouTube"];
                 if (result.Success)
                 {
-                    influencer.TwitterFollower = (int)result.Followers;
+                    influencer.YouTubeFollower = (int)result.Followers;
                 }
                 else if (!string.IsNullOrEmpty(influencer.YouTube))
                 {

@@ -33,7 +33,7 @@ dotnet build -c Release
 
 # Start application
 echo "Starting API..."
-nohup dotnet run --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &
+nohup dotnet run --project /home/ec2-user/dartford_backend --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &
 
 # Wait and test
 sleep 10

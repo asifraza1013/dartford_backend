@@ -8,7 +8,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace inflan_api.Migrations
 {
     /// <inheritdoc />
-    public partial class init : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -43,11 +43,11 @@ namespace inflan_api.Migrations
                     Id = table.Column<int>(type: "integer", nullable: false)
                         .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
                     UserId = table.Column<int>(type: "integer", nullable: false),
-                    Twitter = table.Column<string>(type: "text", nullable: true),
+                    YouTube = table.Column<string>(type: "text", nullable: true),
                     Instagram = table.Column<string>(type: "text", nullable: true),
                     Facebook = table.Column<string>(type: "text", nullable: true),
                     TikTok = table.Column<string>(type: "text", nullable: true),
-                    TwitterFollower = table.Column<int>(type: "integer", nullable: false),
+                    YouTubeFollower = table.Column<int>(type: "integer", nullable: false),
                     InstagramFollower = table.Column<int>(type: "integer", nullable: false),
                     FacebookFollower = table.Column<int>(type: "integer", nullable: false),
                     TikTokFollower = table.Column<int>(type: "integer", nullable: false),

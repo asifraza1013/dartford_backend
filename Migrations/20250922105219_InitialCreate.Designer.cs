@@ -13,8 +13,8 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    [Migration("20250919131530_AddYouTubeField")]
-    partial class AddYouTubeField
+    [Migration("20250922105219_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -107,17 +107,14 @@ namespace inflan_api.Migrations
                     b.Property<int>("TikTokFollower")
                         .HasColumnType("integer");
 
-                    b.Property<string>("Twitter")
-                        .HasColumnType("text");
-
-                    b.Property<int>("TwitterFollower")
-                        .HasColumnType("integer");
-
                     b.Property<int>("UserId")
                         .HasColumnType("integer");
 
                     b.Property<string>("YouTube")
                         .HasColumnType("text");
+
+                    b.Property<int>("YouTubeFollower")
+                        .HasColumnType("integer");
 
                     b.HasKey("Id");
 

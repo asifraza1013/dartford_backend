@@ -225,13 +225,18 @@ namespace inflan_api.Services
             
             // Clear any existing headers and add fresh authentication headers
             request.Headers.Clear();
-            request.Headers.Add("clientid", _config.ApiKey);
-            request.Headers.Add("token", _config.ApiSecret);
+            
+            // Hardcode Social Blade credentials
+            string clientId = "cli_bf3eb6b244fab365c2b43037";
+            string token = "dcbafc55c0790d9f3e00a7385e7947cd9679ab1c8aaeaa03a7bd1ae98141c762";
+            
+            request.Headers.Add("clientid", clientId);
+            request.Headers.Add("token", token);
             request.Headers.Add("User-Agent", "Inflan-API/1.0");
             
             _logger.LogInformation($"Making Social Blade API request: {platform}/statistics?query={queryIdentifier}");
-            _logger.LogInformation($"Using clientid: {_config.ApiKey}");
-            _logger.LogInformation($"Using token: {_config.ApiSecret?.Substring(0, 10)}...");
+            _logger.LogInformation($"Using clientid: {clientId}");
+            _logger.LogInformation($"Using token: {token.Substring(0, 10)}...");
 
             // Execute request with retry policy
             var response = await _retryPolicy.ExecuteAsync(async () => 

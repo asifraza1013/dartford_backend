@@ -23,7 +23,7 @@ pkill -f "dotnet run" || true
 sleep 5
 
 # Pull latest code
-cd /home/ec2-user/dartford_backend
+cd /home/ec2-user/inflat-api-server
 git pull origin master
 
 # Restore and build
@@ -33,7 +33,7 @@ dotnet build -c Release
 
 # Start application
 echo "Starting API..."
-nohup dotnet run --project /home/ec2-user/dartford_backend --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &
+nohup dotnet run --project /home/ec2-user/inflat-api-server --urls="http://0.0.0.0:10000" --environment="Production" > app.log 2>&1 &
 
 # Wait and test
 sleep 10

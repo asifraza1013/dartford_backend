@@ -220,20 +220,30 @@ namespace inflan_api.Services
             // Build request URL based on Social Blade Matrix API format
             var requestUrl = $"{platform}/statistics?query={queryIdentifier}&history=default&allow-stale=false";
             
-            var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
+            // Create a fresh HTTP client request
+            using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
             
-            // Add authentication headers (not query parameters)
+            // Clear any existing headers and add fresh authentication headers
+            request.Headers.Clear();
             request.Headers.Add("clientid", _config.ApiKey);
             request.Headers.Add("token", _config.ApiSecret);
-            
-            // Add User-Agent to avoid bot detection
             request.Headers.Add("User-Agent", "Inflan-API/1.0");
-
+            
             _logger.LogInformation($"Making Social Blade API request: {platform}/statistics?query={queryIdentifier}");
+            _logger.LogInformation($"Using clientid: {_config.ApiKey}");
+            _logger.LogInformation($"Using token: {_config.ApiSecret?.Substring(0, 10)}...");
 
             // Execute request with retry policy
             var response = await _retryPolicy.ExecuteAsync(async () => 
-                await _httpClient.SendAsync(request));
+            {
+                // Clone the request for retry attempts
+                var clonedRequest = new HttpRequestMessage(request.Method, request.RequestUri);
+                foreach (var header in request.Headers)
+                {
+                    clonedRequest.Headers.Add(header.Key, header.Value);
+                }
+                return await _httpClient.SendAsync(clonedRequest);
+            });
 
             if (!response.IsSuccessStatusCode)
             {
@@ -291,12 +301,15 @@ namespace inflan_api.Services
                                     break;
                                 case "instagram":
                                 case "tiktok":
-                                case "facebook":
-                                    // These platforms typically use followers field
                                     if (total.TryGetProperty("followers", out var followersProp))
                                         followers = followersProp.GetInt64();
-                                    else if (total.TryGetProperty("following", out var following))
-                                        followers = following.GetInt64();
+                                    break;
+                                case "facebook":
+                                    // Facebook uses "likes" as the main metric
+                                    if (total.TryGetProperty("likes", out var likesProp))
+                                        followers = likesProp.GetInt64();
+                                    else if (total.TryGetProperty("followers", out var fbFollowersProp))
+                                        followers = fbFollowersProp.GetInt64();
                                     break;
                             }
                         }

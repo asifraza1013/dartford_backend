@@ -114,21 +114,21 @@ namespace inflan_api.Services
                 if (json.ValueKind == JsonValueKind.Array)
                 {
                     if (json.GetArrayLength() == 0)
-                        return (default, $"{platform}:Invalid user name. Empty array received.");
+                        return (default, $"{platform}:Invalid user name. Empty array received..");
 
                     var firstItem = json[0];
                     if (!firstItem.EnumerateObject().Any())
-                        return (default, $"{platform}: Invalid user name. Array contains empty object.");
+                        return (default, $"{platform}: Invalid user name. Array contains empty object..");
 
                     return (firstItem, null);
                 }
 
                 if (json.TryGetProperty("items_found", out var itemsFoundProp) && itemsFoundProp.GetInt32() == 0)
-                    return (default, $"{platform}:Invalid user name. No user found.");
+                    return (default, $"{platform}:Invalid user name. No user found..");
 
                 if (platform == "YouTube" &&
                     (!json.TryGetProperty("follower_count", out var countProp) || countProp.ValueKind == JsonValueKind.Null))
-                    return (default, $"{platform}:Invalid user name. Follower count is missing or null.");
+                    return (default, $"{platform}:Invalid user name. Follower count is missing or nullll.");
 
                 return (json, null);
             }

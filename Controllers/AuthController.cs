@@ -44,8 +44,8 @@ namespace inflan_api.Controllers
             User? user = await _userService.ValidateUserAsync(login.Email, login.Password);
             if (user == null)
                 return StatusCode(401, new { 
-                    message = "Invalid email or password",
-                    code = Message.INVALID_EMAIL_PASSWORD 
+                    message = MessageHelper.GetMessageText(Message.INVALID_EMAIL_PASSWORD),
+                    code = MessageHelper.GetMessageCode(Message.INVALID_EMAIL_PASSWORD) 
                 });
 
             var token = _authService.GenerateJwtToken(user);
@@ -110,8 +110,8 @@ namespace inflan_api.Controllers
             var existing = await _userService.GetByEmailAsync(user.Email);
             if (existing != null)
                 return StatusCode(400, new { 
-                    message = "Email already registered. Please login instead.",
-                    code = Message.EMAIL_ALREADY_REGISTERED 
+                    message = MessageHelper.GetMessageText(Message.EMAIL_ALREADY_REGISTERED),
+                    code = MessageHelper.GetMessageCode(Message.EMAIL_ALREADY_REGISTERED) 
                 });
 
             user.Status = (int)Status.ACTIVE;

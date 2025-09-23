@@ -39,7 +39,7 @@ RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -X POST "http://localhost:808
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{
-    "youTube": "imranriazkhan1",
+    "youTube": "ZulqarnainSikandar25",
     "instagram": "ch.zulqarnain25",
     "facebook": "zulqarnainsikandar09",
     "tikTok": "ch.zulqarnain25",

@@ -250,15 +250,30 @@ namespace inflan_api.Services
                 return await _httpClient.SendAsync(clonedRequest);
             });
 
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError($"Social Blade API error: {response.StatusCode} - {errorContent}");
-                throw new HttpRequestException($"Social Blade API returned {response.StatusCode}: {errorContent}");
-            }
-
             var content = await response.Content.ReadAsStringAsync();
-            return JsonDocument.Parse(content);
+            _logger.LogInformation($"Social Blade API response ({response.StatusCode}): {content}");
+            
+            // Parse the response regardless of HTTP status code
+            // Social Blade returns structured error responses even for 404s
+            try
+            {
+                return JsonDocument.Parse(content);
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError($"Failed to parse Social Blade response as JSON: {ex.Message}");
+                // Create a synthetic error response if JSON parsing fails
+                var errorResponse = JsonSerializer.Serialize(new
+                {
+                    status = new
+                    {
+                        success = false,
+                        status = (int)response.StatusCode,
+                        error = $"HTTP {response.StatusCode}: Invalid JSON response"
+                    }
+                });
+                return JsonDocument.Parse(errorResponse);
+            }
         }
 
         private FollowerCountResult ParseSocialBladeResponse(JsonDocument response, string platform)

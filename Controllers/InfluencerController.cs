@@ -186,6 +186,9 @@ namespace inflan_api.Controllers
                 errors.Add("No valid social media accounts with followers found");
             }
             
+            // If ANY account was provided but failed validation, block the creation
+            // This ensures that users can't proceed with invalid/0 follower accounts
+            
             Console.WriteLine($"Total errors found: {errors.Count}");
             if (errors.Any())
             {

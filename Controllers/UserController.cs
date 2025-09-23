@@ -60,7 +60,7 @@ namespace inflan_api.Controllers
                         user,
                         message = "Please complete your brand profile",
                         code = Message.BRAND_INFO_NOT_FILLED,
-                        missingStep = "Goals or Category missing"
+                        missingStep = "Goals, Sector or Category missing"
                     });
                 }
             }else if (user.UserType == (int)UserType.INFLUENCER)

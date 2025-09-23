@@ -10,6 +10,7 @@ using inflan_api.Models;
 using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Extensions.Http;
+using Microsoft.AspNetCore.Mvc;
 
 namespace inflan_api
 {

@@ -99,8 +99,8 @@ namespace inflan_api.Controllers
             
             return Ok(new
             {
-                Token = token,
-                User = user
+                token = token,
+                user = user
             });
         }
 

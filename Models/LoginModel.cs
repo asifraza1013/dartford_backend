@@ -6,8 +6,8 @@ namespace inflan_api.Models
     {
         [Required(ErrorMessage = "Email is required")]
         [EmailAddress(ErrorMessage = "Please enter a valid email address")]
-        public string Email { get; set; }
+        public required string Email { get; set; }
         [Required(ErrorMessage = "Password is required")]
-        public string Password { get; set; }
+        public required string Password { get; set; }
     }
 }

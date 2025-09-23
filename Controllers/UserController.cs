@@ -37,7 +37,10 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+                return StatusCode(401, new { 
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN" 
+                });
             
             int userId = int.Parse(userIdClaim.Value);
             var user = await _userService.GetUserById(userId);
@@ -55,7 +58,8 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         user,
-                        message = Message.BRAND_INFO_NOT_FILLED,
+                        message = "Please complete your brand profile",
+                        code = Message.BRAND_INFO_NOT_FILLED,
                         missingStep = "Goals or Category missing"
                     });
                 }
@@ -67,7 +71,8 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         user,
-                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        message = "Please add your social media accounts",
+                        code = Message.INFLUENCER_INFO_NOT_FILLED,
                         missingStep = "Socials missing"
                     });
                 }
@@ -77,12 +82,16 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         user,
-                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        message = "Please create at least one service plan",
+                        code = Message.INFLUENCER_INFO_NOT_FILLED,
                         missingStep = "Plans missing"
                     });
                 }
             }
-            return user == null ? StatusCode(400, new { message = Message.USER_NOT_FOUND }) : Ok(user);
+            return user == null ? StatusCode(404, new { 
+                message = "User not found",
+                code = Message.USER_NOT_FOUND 
+            }) : Ok(user);
         }
         
         [Authorize]
@@ -91,14 +100,20 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return Unauthorized(new { message = "UserId not found in token" });
+                return Unauthorized(new { 
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN" 
+                });
 
             int userId = int.Parse(userIdClaim.Value);
 
             var relativePath = await _userService.SaveOrUpdateProfilePictureAsync(userId, file);
 
             if (relativePath == null)
-                return BadRequest("Invalid file.");
+                return BadRequest(new { 
+                    message = "Invalid file format or size",
+                    code = "INVALID_FILE" 
+                });
 
             var user = await _userService.GetUserById(userId);
             if (user == null)
@@ -117,7 +132,10 @@ namespace inflan_api.Controllers
         {
             var user = await _userService.GetUserById(id);
             if (user == null)
-                return StatusCode(400, new { message = Message.USER_NOT_FOUND });
+                return StatusCode(404, new { 
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND 
+                });
 
             return Ok(user);
         }
@@ -131,11 +149,19 @@ namespace inflan_api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { 
+                    message = "Failed to generate username. Please try again.",
+                    code = "USERNAME_GENERATION_ERROR",
+                    details = ex.Message 
+                });
             }
 
             var createdUser = await _userService.CreateUser(user);
-            return StatusCode(200,  new { message = Message.USER_CREATED_SUCCESSFULLY, user = createdUser});
+            return StatusCode(201,  new { 
+                message = "User created successfully",
+                code = Message.USER_CREATED_SUCCESSFULLY, 
+                user = createdUser
+            });
         }
 
         [HttpPut("updateUser/{id}")]
@@ -147,9 +173,15 @@ namespace inflan_api.Controllers
                 user.ProfileImage = newImagePath;
             var updated = await _userService.UpdateUser(id, user);
             if (!updated)
-                return StatusCode(500,  new { message = Message.USER_UPDATE_FAILED });
+                return StatusCode(500,  new { 
+                    message = "Failed to update user information",
+                    code = Message.USER_UPDATE_FAILED 
+                });
 
-            return StatusCode(200, new { message = Message.USER_UPDATED_SUCCESSFULLY });
+            return StatusCode(200, new { 
+                message = "User updated successfully",
+                code = Message.USER_UPDATED_SUCCESSFULLY 
+            });
         }
 
         [HttpDelete("deleteUser/{id}")]
@@ -157,7 +189,10 @@ namespace inflan_api.Controllers
         {
             var deleted = await _userService.DeleteUser(id);
             if (!deleted)
-                return StatusCode(500, new { message = Message.USER_DELETE_FAILED });
+                return StatusCode(500, new { 
+                    message = "Failed to delete user",
+                    code = Message.USER_DELETE_FAILED 
+                });
 
             return NoContent();
         }

@@ -39,7 +39,10 @@ namespace inflan_api.Controllers
         public async Task<IActionResult> GetInfluencerById(int id)
         {
             var influencer = await _influencerService.GetInfluencerById(id);
-            return influencer != null ? Ok(influencer) : StatusCode(401, new { message = Message.INFLUENCER_NOT_FOUND });
+            return influencer != null ? Ok(influencer) : StatusCode(404, new { 
+                message = "Influencer not found",
+                code = Message.INFLUENCER_NOT_FOUND 
+            });
         }
 
         [HttpPost("createNewInfluencer")]
@@ -48,7 +51,10 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+                return StatusCode(401, new { 
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN" 
+                });
 
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
@@ -129,7 +135,12 @@ namespace inflan_api.Controllers
                 }
             }
             var created = await _influencerService.CreateInfluencer(influencer);
-            return StatusCode(200,  new { message = Message.INFLUENCER_CREATED_SUCCESSFULLY, influencer = created});
+            return StatusCode(201,  new { 
+                message = "Social media accounts added successfully",
+                code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
+                influencer = created,
+                followerCountErrors = errors.Any() ? errors : null
+            });
         }
 
         [HttpPut("updateInfluencer/{userId}")]
@@ -137,7 +148,10 @@ namespace inflan_api.Controllers
         {
             User user = await _userService.GetUserById(userId);
             if (user == null)
-                return StatusCode(400, new { message = Message.USER_NOT_FOUND });
+                return StatusCode(404, new { 
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND 
+                });
 
             user.UserName = influencer.UserName ??  user.UserName;
             user.Name = influencer.Name ??  user.Name;
@@ -146,7 +160,10 @@ namespace inflan_api.Controllers
             
             var updatedUser = await _userService.UpdateUser(userId, user);
             if (updatedUser == false)
-                return StatusCode(500, new { message = Message.INFLUENCER_USER_UPDATE_FAILED });
+                return StatusCode(500, new { 
+                    message = "Failed to update user information",
+                    code = Message.INFLUENCER_USER_UPDATE_FAILED 
+                });
 
             if (influencer.Bio == null)
             {
@@ -155,7 +172,10 @@ namespace inflan_api.Controllers
             
             var updated = await _influencerService.UpdateInfluencer(userId, new Influencer{Bio = influencer.Bio, UserId = userId});
             if (!updated)
-                return StatusCode(500, new { message = Message.INFLUENCER_UPDATE_FAILED });
+                return StatusCode(500, new { 
+                    message = "Failed to update influencer profile",
+                    code = Message.INFLUENCER_UPDATE_FAILED 
+                });
             
             return NoContent();
         }

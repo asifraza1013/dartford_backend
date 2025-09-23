@@ -30,7 +30,10 @@ namespace inflan_api.Controllers
         {
             var user = await _userService.GetUserById(id);
             if (user == null)
-                return StatusCode(400, new { message = Message.USER_NOT_FOUND });
+                return StatusCode(404, new { 
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND 
+                });
             
             return Ok(user);
         }
@@ -40,7 +43,10 @@ namespace inflan_api.Controllers
         {
             User? user = await _userService.ValidateUserAsync(login.Email, login.Password);
             if (user == null)
-                return StatusCode(401, new { message = Message.INVALID_EMAIL_PASSWORD });
+                return StatusCode(401, new { 
+                    message = "Invalid email or password",
+                    code = Message.INVALID_EMAIL_PASSWORD 
+                });
 
             var token = _authService.GenerateJwtToken(user);
             int userType = user.UserType;
@@ -57,7 +63,9 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         token,
-                        message = Message.BRAND_INFO_NOT_FILLED,
+                        user,
+                        message = "Please complete your brand profile",
+                        code = Message.BRAND_INFO_NOT_FILLED,
                         missingStep = "Goals, Sector or Category missing"
                     });
                 }
@@ -69,7 +77,9 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         token,
-                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        user,
+                        message = "Please add your social media accounts",
+                        code = Message.INFLUENCER_INFO_NOT_FILLED,
                         missingStep = "Socials missing"
                     });
                 }
@@ -79,7 +89,9 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         token,
-                        message = Message.INFLUENCER_INFO_NOT_FILLED,
+                        user,
+                        message = "Please create at least one service plan",
+                        code = Message.INFLUENCER_INFO_NOT_FILLED,
                         missingStep = "Plans missing"
                     });
                 }
@@ -97,7 +109,10 @@ namespace inflan_api.Controllers
         {
             var existing = await _userService.GetByEmailAsync(user.Email);
             if (existing != null)
-                return StatusCode(405, new { message = Message.EMAIL_ALREADY_REGISTERED });
+                return StatusCode(400, new { 
+                    message = "Email already registered. Please login instead.",
+                    code = Message.EMAIL_ALREADY_REGISTERED 
+                });
 
             user.Status = (int)Status.ACTIVE;
             try
@@ -106,7 +121,11 @@ namespace inflan_api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { 
+                    message = "Failed to generate username. Please try again.",
+                    code = "USERNAME_GENERATION_ERROR",
+                    details = ex.Message 
+                });
             }
             var result = await _authService.RegisterAsync(user);
             var token = _authService.GenerateJwtToken(user);

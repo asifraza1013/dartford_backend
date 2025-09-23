@@ -33,7 +33,30 @@ namespace inflan_api
             builder.Services.Configure<FollowerSyncConfig>(
                 builder.Configuration.GetSection(FollowerSyncConfig.SectionName));
 
-            builder.Services.AddControllers();
+            builder.Services.AddControllers()
+                .ConfigureApiBehaviorOptions(options =>
+                {
+                    options.InvalidModelStateResponseFactory = context =>
+                    {
+                        var errors = context.ModelState
+                            .Where(e => e.Value?.Errors.Count > 0)
+                            .Select(e => new
+                            {
+                                field = e.Key,
+                                message = e.Value?.Errors.First().ErrorMessage
+                            })
+                            .ToList();
+
+                        var result = new
+                        {
+                            message = "Validation failed",
+                            code = "VALIDATION_ERROR",
+                            errors = errors
+                        };
+
+                        return new BadRequestObjectResult(result);
+                    };
+                });
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();

@@ -31,7 +31,10 @@ namespace inflan_api.Controllers
         {
             var plan = await _planService.GetPlanById(id);
             if (plan == null)
-                return StatusCode(400, new { message = Message.PLAN_NOT_FOUND });
+                return StatusCode(404, new { 
+                    message = "Plan not found",
+                    code = Message.PLAN_NOT_FOUND 
+                });
 
             return Ok(plan);
         }
@@ -42,12 +45,19 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+                return StatusCode(401, new { 
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN" 
+                });
 
             int userId = int.Parse(userIdClaim.Value);
             plan.UserId = userId;
             var created = await _planService.CreatePlan(plan);
-            return StatusCode(200, new { message = Message.PLAN_CREATED_SUCCESSFULLY, plan = created });
+            return StatusCode(201, new { 
+                message = "Plan created successfully",
+                code = Message.PLAN_CREATED_SUCCESSFULLY, 
+                plan = created 
+            });
         }
 
         [HttpPut("updatePlan/{id}")]
@@ -55,7 +65,10 @@ namespace inflan_api.Controllers
         {
             var updated = await _planService.UpdatePlan(id, plan);
             if (!updated)
-                return StatusCode(500, new { message = Message.PLAN_UPDATE_FAILED });
+                return StatusCode(500, new { 
+                    message = "Failed to update plan",
+                    code = Message.PLAN_UPDATE_FAILED 
+                });
 
             return NoContent();
         }
@@ -65,7 +78,10 @@ namespace inflan_api.Controllers
         {
             var deleted = await _planService.DeletePlan(id);
             if (!deleted)
-                return StatusCode(500, new { message = Message.PLAN_DELETE_FAILED });
+                return StatusCode(500, new { 
+                    message = "Failed to delete plan",
+                    code = Message.PLAN_DELETE_FAILED 
+                });
 
             return NoContent();
         }
@@ -75,7 +91,10 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { message = "Unauthorized: UserId not found in token" });
+                return StatusCode(401, new { 
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN" 
+                });
 
             int userId = int.Parse(userIdClaim.Value);
             var plans = await _planService.GetPlansByUserId(userId);
@@ -88,7 +107,10 @@ namespace inflan_api.Controllers
             var plans = await _planService.GetPlansByUserId(userId);
 
             if (!plans.Any())
-                return NotFound(new { message = "No plans found for this influencer." });
+                return NotFound(new { 
+                    message = "No plans found for this influencer",
+                    code = "NO_PLANS_FOUND" 
+                });
 
             return Ok(plans);
         }

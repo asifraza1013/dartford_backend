@@ -45,6 +45,22 @@ namespace inflan_api.Controllers
             });
         }
 
+        [HttpGet("testFollowerService")]
+        public async Task<IActionResult> TestFollowerService()
+        {
+            var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
+                instagramUsername: "ch.zulqarnain25",
+                youtubeChannelId: "ZulqarnainSikandar25", 
+                tiktokUsername: "ch.zulqarnain25",
+                facebookUsername: "zulqarnainsikandar09"
+            );
+            
+            return Ok(new {
+                message = "Follower service test",
+                results = followerResults
+            });
+        }
+
         [HttpPost("createNewInfluencer")]
         [Authorize]
         public async Task<IActionResult> CreateInfluencer([FromBody] Influencer influencer)
@@ -69,18 +85,27 @@ namespace inflan_api.Controllers
 
             // Check for errors and set follower counts
             var errors = new List<string>();
+            bool hasValidAccount = false;
+            
+            Console.WriteLine($"Processing follower results. Total platforms: {followerResults.Count}");
             
             // Instagram
             if (followerResults.ContainsKey("Instagram"))
             {
                 var result = followerResults["Instagram"];
-                if (result.Success && result.Followers > 0)
+                Console.WriteLine($"Instagram - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.Instagram}'");
+                
+                if (!string.IsNullOrEmpty(influencer.Instagram))
                 {
-                    influencer.InstagramFollower = (int)result.Followers;
-                }
-                else if (!string.IsNullOrEmpty(influencer.Instagram))
-                {
-                    errors.Add($"Instagram account '{influencer.Instagram}': {(result.Success ? "No followers found" : result.ErrorMessage)}");
+                    if (result.Success && result.Followers > 0)
+                    {
+                        influencer.InstagramFollower = (int)result.Followers;
+                        hasValidAccount = true;
+                    }
+                    else
+                    {
+                        errors.Add($"Instagram account '{influencer.Instagram}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                    }
                 }
             }
             
@@ -88,13 +113,19 @@ namespace inflan_api.Controllers
             if (followerResults.ContainsKey("YouTube"))
             {
                 var result = followerResults["YouTube"];
-                if (result.Success && result.Followers > 0)
+                Console.WriteLine($"YouTube - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.YouTube}'");
+                
+                if (!string.IsNullOrEmpty(influencer.YouTube))
                 {
-                    influencer.YouTubeFollower = (int)result.Followers;
-                }
-                else if (!string.IsNullOrEmpty(influencer.YouTube))
-                {
-                    errors.Add($"YouTube account '{influencer.YouTube}': {(result.Success ? "No followers found" : result.ErrorMessage)}");
+                    if (result.Success && result.Followers > 0)
+                    {
+                        influencer.YouTubeFollower = (int)result.Followers;
+                        hasValidAccount = true;
+                    }
+                    else
+                    {
+                        errors.Add($"YouTube account '{influencer.YouTube}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                    }
                 }
             }
             
@@ -102,13 +133,19 @@ namespace inflan_api.Controllers
             if (followerResults.ContainsKey("TikTok"))
             {
                 var result = followerResults["TikTok"];
-                if (result.Success && result.Followers > 0)
+                Console.WriteLine($"TikTok - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.TikTok}'");
+                
+                if (!string.IsNullOrEmpty(influencer.TikTok))
                 {
-                    influencer.TikTokFollower = (int)result.Followers;
-                }
-                else if (!string.IsNullOrEmpty(influencer.TikTok))
-                {
-                    errors.Add($"TikTok account '{influencer.TikTok}': {(result.Success ? "No followers found" : result.ErrorMessage)}");
+                    if (result.Success && result.Followers > 0)
+                    {
+                        influencer.TikTokFollower = (int)result.Followers;
+                        hasValidAccount = true;
+                    }
+                    else
+                    {
+                        errors.Add($"TikTok account '{influencer.TikTok}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                    }
                 }
             }
             
@@ -116,31 +153,63 @@ namespace inflan_api.Controllers
             if (followerResults.ContainsKey("Facebook"))
             {
                 var result = followerResults["Facebook"];
-                if (result.Success && result.Followers > 0)
+                Console.WriteLine($"Facebook - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.Facebook}'");
+                
+                if (!string.IsNullOrEmpty(influencer.Facebook))
                 {
-                    influencer.FacebookFollower = (int)result.Followers;
-                }
-                else if (!string.IsNullOrEmpty(influencer.Facebook))
-                {
-                    errors.Add($"Facebook account '{influencer.Facebook}': {(result.Success ? "No followers found" : result.ErrorMessage)}");
+                    if (result.Success && result.Followers > 0)
+                    {
+                        influencer.FacebookFollower = (int)result.Followers;
+                        hasValidAccount = true;
+                    }
+                    else
+                    {
+                        errors.Add($"Facebook account '{influencer.Facebook}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                    }
                 }
             }
             
-            // If any platform failed or has 0 followers, return error
+            // Additional check: if no accounts provided at all
+            bool allAccountsEmpty = string.IsNullOrEmpty(influencer.Instagram) &&
+                                   string.IsNullOrEmpty(influencer.YouTube) &&
+                                   string.IsNullOrEmpty(influencer.TikTok) &&
+                                   string.IsNullOrEmpty(influencer.Facebook);
+            
+            if (allAccountsEmpty)
+            {
+                errors.Add("No social media accounts provided");
+            }
+            
+            // If we have accounts but none are valid, that's also an error
+            if (!allAccountsEmpty && !hasValidAccount)
+            {
+                errors.Add("No valid social media accounts with followers found");
+            }
+            
+            Console.WriteLine($"Total errors found: {errors.Count}");
             if (errors.Any())
             {
+                Console.WriteLine("Errors detected, returning 400:");
+                foreach (var error in errors)
+                {
+                    Console.WriteLine($"  - {error}");
+                }
+                
                 return StatusCode(400, new {
                     message = "Unable to validate social media accounts. Please check your usernames and try again.",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
                     errors = errors
                 });
             }
+            
+            Console.WriteLine("No errors found, creating influencer...");
             var created = await _influencerService.CreateInfluencer(influencer);
+            Console.WriteLine($"Influencer created with ID: {created.Id}");
+            
             return StatusCode(201,  new { 
                 message = "Social media accounts added successfully",
                 code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
-                influencer = created,
-                followerCountErrors = errors.Any() ? errors : null
+                influencer = created
             });
         }
 

@@ -85,7 +85,6 @@ namespace inflan_api.Controllers
 
             // Check for errors and set follower counts
             var errors = new List<string>();
-            bool hasValidAccount = false;
             
             Console.WriteLine($"Processing follower results. Total platforms: {followerResults.Count}");
             
@@ -100,7 +99,6 @@ namespace inflan_api.Controllers
                     if (result.Success && result.Followers > 0)
                     {
                         influencer.InstagramFollower = (int)result.Followers;
-                        hasValidAccount = true;
                     }
                     else
                     {
@@ -120,7 +118,6 @@ namespace inflan_api.Controllers
                     if (result.Success && result.Followers > 0)
                     {
                         influencer.YouTubeFollower = (int)result.Followers;
-                        hasValidAccount = true;
                     }
                     else
                     {
@@ -140,7 +137,6 @@ namespace inflan_api.Controllers
                     if (result.Success && result.Followers > 0)
                     {
                         influencer.TikTokFollower = (int)result.Followers;
-                        hasValidAccount = true;
                     }
                     else
                     {
@@ -160,7 +156,6 @@ namespace inflan_api.Controllers
                     if (result.Success && result.Followers > 0)
                     {
                         influencer.FacebookFollower = (int)result.Followers;
-                        hasValidAccount = true;
                     }
                     else
                     {

@@ -83,18 +83,8 @@ namespace inflan_api.Controllers
                         missingStep = "Socials missing"
                     });
                 }
-                var influencerPlans = await _planService.GetPlansByUserId(user.Id);
-                if (influencerPlans == null || !influencerPlans.Any())
-                {
-                    return StatusCode(200, new
-                    {
-                        token,
-                        user,
-                        message = "Please create at least one service plan",
-                        code = Message.INFLUENCER_INFO_NOT_FILLED,
-                        missingStep = "Plans missing"
-                    });
-                }
+                // Note: We don't check for plans here because user might be in the process of creating them
+                // The frontend will handle navigation to package creation if needed
             }
             
             return Ok(new

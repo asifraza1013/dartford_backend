@@ -175,6 +175,7 @@ namespace inflan_api.Controllers
             });
         }
 
+
         [HttpDelete("deleteUser/{id}")]
         public async Task<IActionResult> DeleteUser(int id)
         {

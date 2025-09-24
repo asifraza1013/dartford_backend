@@ -32,32 +32,52 @@ namespace inflan_api.Services
 
         public async Task<bool> UpdateUser(int id, User user)
         {
-            var existingUser = await _userRepository.GetById(id);
-            if (existingUser == null) return false;
-
-            if (user.Name != null) existingUser.Name = user.Name;
-            if (user.UserName != null) existingUser.UserName = user.UserName;
-            if (user.Email != null)
+            try
             {
-                var userExist = await GetByEmailAsync(user.Email);
-                if (userExist != null)
+                Console.WriteLine($"UpdateUser called for ID: {id}");
+                Console.WriteLine($"User data received: Name={user.Name}, Email={user.Email}, BrandCategory={user.BrandCategory}, BrandSector={user.BrandSector}, Goals={user.Goals?.Count}");
+                
+                var existingUser = await _userRepository.GetById(id);
+                if (existingUser == null) 
                 {
+                    Console.WriteLine($"User with ID {id} not found");
                     return false;
                 }
-                existingUser.Email = user.Email;
+
+                if (user.Name != null) existingUser.Name = user.Name;
+                if (user.UserName != null) existingUser.UserName = user.UserName;
+                if (user.Email != null)
+                {
+                    var userExist = await GetByEmailAsync(user.Email);
+                    // Only check for duplicate email if it's a different user (not the current one)
+                    if (userExist != null && userExist.Id != id)
+                    {
+                        Console.WriteLine($"Email {user.Email} already exists for another user");
+                        return false;
+                    }
+                    existingUser.Email = user.Email;
+                }
+                if (user.Password != null) existingUser.Password = user.Password;
+                if (user.BrandName != null) existingUser.BrandName = user.BrandName;
+                if (user.BrandCategory != null) existingUser.BrandCategory = user.BrandCategory;
+                if (user.BrandSector != null) existingUser.BrandSector = user.BrandSector;
+                if (user.Goals != null) existingUser.Goals = user.Goals;
+                if (user.ProfileImage != null) existingUser.ProfileImage = user.ProfileImage;
+
+                if (user.UserType != 0) existingUser.UserType = user.UserType;
+                if (user.Status != 0) existingUser.Status = user.Status;
+
+                Console.WriteLine("About to call repository update...");
+                await _userRepository.Update(existingUser);
+                Console.WriteLine("Repository update completed successfully");
+                return true;
             }
-            if (user.Password != null) existingUser.Password = user.Password;
-            if (user.BrandName != null) existingUser.BrandName = user.BrandName;
-            if (user.BrandCategory != null) existingUser.BrandCategory = user.BrandCategory;
-            if (user.BrandSector != null) existingUser.BrandSector = user.BrandSector;
-            if (user.Goals != null) existingUser.Goals = user.Goals;
-            if (user.ProfileImage != null) existingUser.ProfileImage = user.ProfileImage;
-
-            if (user.UserType != 0) existingUser.UserType = user.UserType;
-            if (user.Status != 0) existingUser.Status = user.Status;
-
-            await _userRepository.Update(existingUser);
-            return true;
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in UpdateUser: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                return false;
+            }
         }
 
         public async Task<bool> DeleteUser(int id)

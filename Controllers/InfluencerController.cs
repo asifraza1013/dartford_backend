@@ -175,13 +175,53 @@ namespace inflan_api.Controllers
                 errors.Add("No social media accounts provided");
             }
             
-            // CRITICAL FIX: If ANY account was provided but failed validation, block the creation
-            // This ensures that users can't proceed with invalid/0 follower accounts
-            Console.WriteLine($"Total errors found: {errors.Count}");
-            if (errors.Any())
+            // Check if errors are due to external API failures vs invalid usernames
+            var isExternalApiFailure = errors.Any(error => 
+                error.Contains("API error") ||
+                error.Contains("API request failed") ||
+                error.Contains("Service unavailable") ||
+                error.Contains("Rate limit") ||
+                error.Contains("Timeout") ||
+                error.Contains("Connection failed") ||
+                error.Contains("SocialBlade") ||
+                error.Contains("Failed to fetch") ||
+                error.Contains("HTTP request failed") ||
+                error.Contains("Failed to parse response") ||
+                error.Contains("Invalid JSON response") ||
+                error.Contains("HTTP 5") || // HTTP 500, 502, 503, etc.
+                error.Contains("HTTP 4") || // HTTP 400, 404, 429, etc.
+                error.Contains("Network") ||
+                error.Contains("network") ||
+                error.Contains("A task was canceled") ||
+                error.Contains("HttpRequestException") ||
+                error.Contains("TaskCanceledException")
+            );
+
+            // Only block creation for invalid usernames, not external API failures
+            var criticalErrors = errors.Where(error => 
+                error.Contains("No social media accounts provided") ||
+                (!isExternalApiFailure && (
+                    error.Contains("not found") || 
+                    error.Contains("invalid") ||
+                    error.Contains("doesn't exist")
+                ))
+            ).ToList();
+
+            // Special case: If all errors are about "No followers found (got 0)" this could be API issues
+            // Don't treat 0 followers as a critical error if there are multiple accounts with 0 followers
+            var zeroFollowerErrors = errors.Where(error => error.Contains("No followers found (got 0)")).Count();
+            if (zeroFollowerErrors > 1 && !isExternalApiFailure)
             {
-                Console.WriteLine("Errors detected, returning 400:");
-                foreach (var error in errors)
+                // Multiple accounts returning 0 followers suggests API issues, not invalid usernames
+                criticalErrors = criticalErrors.Where(error => !error.Contains("No followers found (got 0)")).ToList();
+            }
+
+            Console.WriteLine($"Total errors found: {errors.Count}, Critical errors: {criticalErrors.Count}, External API failure: {isExternalApiFailure}");
+            
+            if (criticalErrors.Any())
+            {
+                Console.WriteLine("Critical errors detected, returning 400:");
+                foreach (var error in criticalErrors)
                 {
                     Console.WriteLine($"  - {error}");
                 }
@@ -189,13 +229,30 @@ namespace inflan_api.Controllers
                 return StatusCode(400, new {
                     message = "Unable to validate social media accounts. Please check your usernames and try again.",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
-                    errors = errors
+                    errors = criticalErrors
                 });
             }
             
-            Console.WriteLine("No errors found, creating influencer...");
+            Console.WriteLine("No critical errors found, creating influencer...");
             var created = await _influencerService.CreateInfluencer(influencer);
             Console.WriteLine($"Influencer created with ID: {created.Id}");
+            
+            // If there were non-critical errors (API failures), include them in the response
+            if (errors.Any() && !criticalErrors.Any())
+            {
+                Console.WriteLine("Non-critical errors present, returning success with warnings:");
+                foreach (var error in errors)
+                {
+                    Console.WriteLine($"  - {error}");
+                }
+                
+                return StatusCode(201, new { 
+                    message = "Social media accounts added with some validation warnings",
+                    code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
+                    influencer = created,
+                    warnings = errors
+                });
+            }
             
             return StatusCode(201,  new { 
                 message = "Social media accounts added successfully",

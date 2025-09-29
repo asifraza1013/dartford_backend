@@ -164,91 +164,41 @@ namespace inflan_api.Controllers
                 }
             }
             
-            // Additional check: if no accounts provided at all
+            // SIMPLIFIED APPROACH: Only block if NO social accounts provided at all
+            // Everything else is allowed - SocialBlade issues should not block users
             bool allAccountsEmpty = string.IsNullOrEmpty(influencer.Instagram) &&
                                    string.IsNullOrEmpty(influencer.YouTube) &&
                                    string.IsNullOrEmpty(influencer.TikTok) &&
                                    string.IsNullOrEmpty(influencer.Facebook);
+
+            Console.WriteLine($"Total errors found: {errors.Count}, All accounts empty: {allAccountsEmpty}");
             
             if (allAccountsEmpty)
             {
-                errors.Add("No social media accounts provided");
-            }
-            
-            // Check if errors are due to external API failures vs invalid usernames
-            var isExternalApiFailure = errors.Any(error => 
-                error.Contains("API error") ||
-                error.Contains("API request failed") ||
-                error.Contains("Service unavailable") ||
-                error.Contains("Rate limit") ||
-                error.Contains("Timeout") ||
-                error.Contains("Connection failed") ||
-                error.Contains("SocialBlade") ||
-                error.Contains("Failed to fetch") ||
-                error.Contains("HTTP request failed") ||
-                error.Contains("Failed to parse response") ||
-                error.Contains("Invalid JSON response") ||
-                error.Contains("HTTP 5") || // HTTP 500, 502, 503, etc.
-                error.Contains("HTTP 4") || // HTTP 400, 404, 429, etc.
-                error.Contains("Network") ||
-                error.Contains("network") ||
-                error.Contains("A task was canceled") ||
-                error.Contains("HttpRequestException") ||
-                error.Contains("TaskCanceledException") ||
-                (error.Contains("query") && error.Contains("not found")) // SocialBlade specific error format
-            );
-
-            // Only block creation for truly critical errors
-            // For now, we'll be very lenient and only block if NO social accounts were provided
-            var criticalErrors = errors.Where(error => 
-                error.Contains("No social media accounts provided")
-            ).ToList();
-            
-            // Since SocialBlade is an external service, we should not block users
-            // even if their usernames aren't found - they might be new accounts,
-            // private accounts, or SocialBlade might not have indexed them yet
-
-            // Special case: If all errors are about "No followers found (got 0)" this could be API issues
-            // Don't treat 0 followers as a critical error if there are multiple accounts with 0 followers
-            var zeroFollowerErrors = errors.Where(error => error.Contains("No followers found (got 0)")).Count();
-            if (zeroFollowerErrors > 1 && !isExternalApiFailure)
-            {
-                // Multiple accounts returning 0 followers suggests API issues, not invalid usernames
-                criticalErrors = criticalErrors.Where(error => !error.Contains("No followers found (got 0)")).ToList();
-            }
-
-            Console.WriteLine($"Total errors found: {errors.Count}, Critical errors: {criticalErrors.Count}, External API failure: {isExternalApiFailure}");
-            
-            if (criticalErrors.Any())
-            {
-                Console.WriteLine("Critical errors detected, returning 400:");
-                foreach (var error in criticalErrors)
-                {
-                    Console.WriteLine($"  - {error}");
-                }
+                Console.WriteLine("No social accounts provided, returning 400:");
                 
                 return StatusCode(400, new {
-                    message = "Unable to validate social media accounts. Please check your usernames and try again.",
+                    message = "Please provide at least one social media account.",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
-                    errors = criticalErrors
+                    errors = new[] { "No social media accounts provided" }
                 });
             }
             
-            Console.WriteLine("No critical errors found, creating influencer...");
+            Console.WriteLine("Creating influencer (allowing external API failures)...");
             var created = await _influencerService.CreateInfluencer(influencer);
             Console.WriteLine($"Influencer created with ID: {created.Id}");
             
-            // If there were non-critical errors (API failures), include them in the response
-            if (errors.Any() && !criticalErrors.Any())
+            // Always return success if we got here - include warnings if there were errors
+            if (errors.Any())
             {
-                Console.WriteLine("Non-critical errors present, returning success with warnings:");
+                Console.WriteLine("Returning success with warnings:");
                 foreach (var error in errors)
                 {
                     Console.WriteLine($"  - {error}");
                 }
                 
                 return StatusCode(201, new { 
-                    message = "Social media accounts added with some validation warnings",
+                    message = "Social media accounts added with validation warnings",
                     code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
                     influencer = created,
                     warnings = errors

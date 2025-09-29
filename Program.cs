@@ -153,8 +153,17 @@ namespace inflan_api
             // Run database migrations on startup
             using (var scope = app.Services.CreateScope())
             {
-                var context = scope.ServiceProvider.GetRequiredService<InflanDBContext>();
-                context.Database.Migrate();
+                try 
+                {
+                    var context = scope.ServiceProvider.GetRequiredService<InflanDBContext>();
+                    context.Database.Migrate();
+                }
+                catch (Exception ex)
+                {
+                    // Log migration error but don't fail startup
+                    Console.WriteLine($"Migration failed: {ex.Message}");
+                    Console.WriteLine("Continuing without migration...");
+                }
             }
 
             // Configure the HTTP request pipeline.

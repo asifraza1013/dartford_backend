@@ -194,18 +194,19 @@ namespace inflan_api.Controllers
                 error.Contains("network") ||
                 error.Contains("A task was canceled") ||
                 error.Contains("HttpRequestException") ||
-                error.Contains("TaskCanceledException")
+                error.Contains("TaskCanceledException") ||
+                (error.Contains("query") && error.Contains("not found")) // SocialBlade specific error format
             );
 
-            // Only block creation for invalid usernames, not external API failures
+            // Only block creation for truly critical errors
+            // For now, we'll be very lenient and only block if NO social accounts were provided
             var criticalErrors = errors.Where(error => 
-                error.Contains("No social media accounts provided") ||
-                (!isExternalApiFailure && (
-                    error.Contains("not found") || 
-                    error.Contains("invalid") ||
-                    error.Contains("doesn't exist")
-                ))
+                error.Contains("No social media accounts provided")
             ).ToList();
+            
+            // Since SocialBlade is an external service, we should not block users
+            // even if their usernames aren't found - they might be new accounts,
+            // private accounts, or SocialBlade might not have indexed them yet
 
             // Special case: If all errors are about "No followers found (got 0)" this could be API issues
             // Don't treat 0 followers as a critical error if there are multiple accounts with 0 followers

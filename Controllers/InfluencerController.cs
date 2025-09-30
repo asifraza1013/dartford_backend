@@ -164,23 +164,22 @@ namespace inflan_api.Controllers
                 }
             }
             
-            // SIMPLIFIED APPROACH: Only block if NO social accounts provided at all
-            // Everything else is allowed - SocialBlade issues should not block users
-            bool allAccountsEmpty = string.IsNullOrEmpty(influencer.Instagram) &&
-                                   string.IsNullOrEmpty(influencer.YouTube) &&
-                                   string.IsNullOrEmpty(influencer.TikTok) &&
-                                   string.IsNullOrEmpty(influencer.Facebook);
+            // SIMPLIFIED APPROACH: Only block if NO required social accounts provided
+            // Facebook is optional, so we only check Instagram, YouTube, and TikTok
+            bool allRequiredAccountsEmpty = string.IsNullOrEmpty(influencer.Instagram) &&
+                                           string.IsNullOrEmpty(influencer.YouTube) &&
+                                           string.IsNullOrEmpty(influencer.TikTok);
 
-            Console.WriteLine($"Total errors found: {errors.Count}, All accounts empty: {allAccountsEmpty}");
+            Console.WriteLine($"Total errors found: {errors.Count}, All required accounts empty: {allRequiredAccountsEmpty}");
             
-            if (allAccountsEmpty)
+            if (allRequiredAccountsEmpty)
             {
-                Console.WriteLine("No social accounts provided, returning 400:");
+                Console.WriteLine("No required social accounts provided, returning 400:");
                 
                 return StatusCode(400, new {
-                    message = "Please provide at least one social media account.",
+                    message = "Please provide at least one required social media account (Instagram, YouTube, or TikTok).",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
-                    errors = new[] { "No social media accounts provided" }
+                    errors = new[] { "No required social media accounts provided" }
                 });
             }
             

@@ -86,8 +86,23 @@ namespace inflan_api.Services
         {
             var existingInfluencer = await _influencerRepository.GetByUserId(userId);
             if (existingInfluencer == null) return false;
-            
+
+            // Update all fields
             existingInfluencer.Bio = influencer.Bio ?? existingInfluencer.Bio;
+            existingInfluencer.Instagram = influencer.Instagram ?? existingInfluencer.Instagram;
+            existingInfluencer.YouTube = influencer.YouTube ?? existingInfluencer.YouTube;
+            existingInfluencer.TikTok = influencer.TikTok ?? existingInfluencer.TikTok;
+            existingInfluencer.Facebook = influencer.Facebook ?? existingInfluencer.Facebook;
+
+            // Update follower counts
+            if (influencer.InstagramFollower > 0)
+                existingInfluencer.InstagramFollower = influencer.InstagramFollower;
+            if (influencer.YouTubeFollower > 0)
+                existingInfluencer.YouTubeFollower = influencer.YouTubeFollower;
+            if (influencer.TikTokFollower > 0)
+                existingInfluencer.TikTokFollower = influencer.TikTokFollower;
+            if (influencer.FacebookFollower > 0)
+                existingInfluencer.FacebookFollower = influencer.FacebookFollower;
 
             await _influencerRepository.Update(existingInfluencer);
             return true;
@@ -105,6 +120,12 @@ namespace inflan_api.Services
         {
             return await _influencerRepository.GetByUserId(userId);
         }
+
+        public async Task<Influencer?> FindBySocialAccount(string? instagram, string? youtube, string? tiktok, string? facebook)
+        {
+            return await _influencerRepository.FindBySocialAccount(instagram, youtube, tiktok, facebook);
+        }
+
         public async Task<(JsonElement data, string? error)> SafeParseJsonAsync(HttpResponseMessage response, string platform)
         {
             try

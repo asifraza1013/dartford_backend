@@ -10,6 +10,6 @@ namespace inflan_api.Interfaces
         Task Update(Influencer influencer);
         Task Delete(int id);
         Task<Influencer?> GetByUserId(int userId);
-
+        Task<Influencer?> FindBySocialAccount(string? instagram, string? youtube, string? tiktok, string? facebook);
     }
 }

@@ -5,6 +5,8 @@ using inflan_api.Utils;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity.Data;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace inflan_api.Controllers
 {
@@ -16,7 +18,7 @@ namespace inflan_api.Controllers
         private readonly IAuthService _authService;
         private readonly IInfluencerService _influencerService;
         private readonly IPlanService _planService;
- 
+
         public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService, IPlanService planService)
         {
             _userService = userService;
@@ -30,12 +32,100 @@ namespace inflan_api.Controllers
         {
             var user = await _userService.GetUserById(id);
             if (user == null)
-                return StatusCode(404, new { 
+                return StatusCode(404, new {
                     message = "User not found",
-                    code = Message.USER_NOT_FOUND 
+                    code = Message.USER_NOT_FOUND
                 });
-            
+
             return Ok(user);
+        }
+
+        [HttpGet("me")]
+        [Authorize]
+        public async Task<IActionResult> GetCurrentUserProfile()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int userId = int.Parse(userIdClaim.Value);
+            var user = await _userService.GetUserById(userId);
+
+            if (user == null)
+                return StatusCode(404, new {
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND
+                });
+
+            int userType = user.UserType;
+
+            // For influencer, get complete influencer details
+            if (userType == (int)UserType.INFLUENCER)
+            {
+                var influencer = await _influencerService.GetInfluencerByUserId(user.Id);
+                if (influencer != null)
+                {
+                    return Ok(new
+                    {
+                        user = user,
+                        influencer = new
+                        {
+                            id = influencer.Id,
+                            userId = influencer.UserId,
+                            instagram = influencer.Instagram,
+                            instagramFollower = influencer.InstagramFollower,
+                            youtube = influencer.YouTube,
+                            youtubeFollower = influencer.YouTubeFollower,
+                            tiktok = influencer.TikTok,
+                            tiktokFollower = influencer.TikTokFollower,
+                            facebook = influencer.Facebook,
+                            facebookFollower = influencer.FacebookFollower,
+                            bio = influencer.Bio
+                        }
+                    });
+                }
+                else
+                {
+                    // No influencer profile yet
+                    return Ok(new
+                    {
+                        user = user,
+                        influencer = (object?)null,
+                        message = "Please add your social media accounts",
+                        code = Message.INFLUENCER_INFO_NOT_FILLED
+                    });
+                }
+            }
+            // For brand, return user with brand details
+            else if (userType == (int)UserType.BRAND)
+            {
+                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandCategory)
+                                       && !string.IsNullOrWhiteSpace(user.BrandSector)
+                                       && user.Goals != null
+                                       && user.Goals.Any();
+
+                if (!brandInfoFilled)
+                {
+                    return Ok(new
+                    {
+                        user = user,
+                        message = "Please complete your brand profile",
+                        code = Message.BRAND_INFO_NOT_FILLED,
+                        missingStep = "Goals, Sector or Category missing"
+                    });
+                }
+
+                return Ok(new
+                {
+                    user = user
+                });
+            }
+
+            // Default case
+            return Ok(new { user = user });
         }
 
         [HttpPost("login")]

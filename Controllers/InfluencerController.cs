@@ -67,13 +67,63 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { 
+                return StatusCode(401, new {
                     message = "Unauthorized: Please login again",
-                    code = "INVALID_TOKEN" 
+                    code = "INVALID_TOKEN"
                 });
 
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
+
+            // Check if social account already exists for another user
+            var existingInfluencer = await _influencerService.FindBySocialAccount(
+                influencer.Instagram,
+                influencer.YouTube,
+                influencer.TikTok,
+                influencer.Facebook
+            );
+
+            if (existingInfluencer != null)
+            {
+                // Check if it's the same user (by email)
+                var existingUser = await _userService.GetUserById(existingInfluencer.UserId);
+                var currentUser = await _userService.GetUserById(userId);
+
+                if (existingUser != null && currentUser != null && existingUser.Email == currentUser.Email)
+                {
+                    // Same user, just update instead of creating
+                    Console.WriteLine($"Social accounts already exist for this user (email: {currentUser.Email}). Updating existing record.");
+
+                    // Update the existing influencer with new data
+                    existingInfluencer.Instagram = influencer.Instagram ?? existingInfluencer.Instagram;
+                    existingInfluencer.YouTube = influencer.YouTube ?? existingInfluencer.YouTube;
+                    existingInfluencer.TikTok = influencer.TikTok ?? existingInfluencer.TikTok;
+                    existingInfluencer.Facebook = influencer.Facebook ?? existingInfluencer.Facebook;
+                    existingInfluencer.Bio = influencer.Bio ?? existingInfluencer.Bio;
+
+                    // Continue to fetch follower counts for the updated accounts below
+                    influencer = existingInfluencer;
+                }
+                else
+                {
+                    // Different user - return error with details about which account is duplicate
+                    var duplicateAccounts = new List<string>();
+                    if (!string.IsNullOrEmpty(influencer.Instagram) && existingInfluencer.Instagram == influencer.Instagram)
+                        duplicateAccounts.Add($"Instagram: {influencer.Instagram}");
+                    if (!string.IsNullOrEmpty(influencer.YouTube) && existingInfluencer.YouTube == influencer.YouTube)
+                        duplicateAccounts.Add($"YouTube: {influencer.YouTube}");
+                    if (!string.IsNullOrEmpty(influencer.TikTok) && existingInfluencer.TikTok == influencer.TikTok)
+                        duplicateAccounts.Add($"TikTok: {influencer.TikTok}");
+                    if (!string.IsNullOrEmpty(influencer.Facebook) && existingInfluencer.Facebook == influencer.Facebook)
+                        duplicateAccounts.Add($"Facebook: {influencer.Facebook}");
+
+                    return StatusCode(400, new {
+                        message = "One or more social media accounts are already registered with another user",
+                        code = "SOCIAL_ACCOUNT_ALREADY_EXISTS",
+                        duplicateAccounts = duplicateAccounts
+                    });
+                }
+            }
             
             // Get follower counts from the follower service (currently Social Blade)
             var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
@@ -175,18 +225,31 @@ namespace inflan_api.Controllers
             if (allRequiredAccountsEmpty)
             {
                 Console.WriteLine("No required social accounts provided, returning 400:");
-                
+
                 return StatusCode(400, new {
                     message = "Please provide at least one required social media account (Instagram, YouTube, or TikTok).",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
                     errors = new[] { "No required social media accounts provided" }
                 });
             }
-            
-            Console.WriteLine("Creating influencer (allowing external API failures)...");
-            var created = await _influencerService.CreateInfluencer(influencer);
-            Console.WriteLine($"Influencer created with ID: {created.Id}");
-            
+
+            // Determine if this is an update or create
+            bool isUpdate = existingInfluencer != null;
+            Influencer savedInfluencer;
+
+            if (isUpdate)
+            {
+                Console.WriteLine($"Updating existing influencer with ID: {influencer.Id}");
+                await _influencerService.UpdateInfluencer(influencer.UserId, influencer);
+                savedInfluencer = influencer;
+            }
+            else
+            {
+                Console.WriteLine("Creating influencer (allowing external API failures)...");
+                savedInfluencer = await _influencerService.CreateInfluencer(influencer);
+                Console.WriteLine($"Influencer created with ID: {savedInfluencer.Id}");
+            }
+
             // Always return success if we got here - include warnings if there were errors
             if (errors.Any())
             {
@@ -195,19 +258,19 @@ namespace inflan_api.Controllers
                 {
                     Console.WriteLine($"  - {error}");
                 }
-                
-                return StatusCode(201, new { 
-                    message = "Social media accounts added with validation warnings",
-                    code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
-                    influencer = created,
+
+                return StatusCode(isUpdate ? 200 : 201, new {
+                    message = isUpdate ? "Social media accounts updated with validation warnings" : "Social media accounts added with validation warnings",
+                    code = Message.INFLUENCER_CREATED_SUCCESSFULLY,
+                    influencer = savedInfluencer,
                     warnings = errors
                 });
             }
-            
-            return StatusCode(201,  new { 
-                message = "Social media accounts added successfully",
-                code = Message.INFLUENCER_CREATED_SUCCESSFULLY, 
-                influencer = created
+
+            return StatusCode(isUpdate ? 200 : 201,  new {
+                message = isUpdate ? "Social media accounts updated successfully" : "Social media accounts added successfully",
+                code = Message.INFLUENCER_CREATED_SUCCESSFULLY,
+                influencer = savedInfluencer
             });
         }
 

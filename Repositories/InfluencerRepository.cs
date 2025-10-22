@@ -127,5 +127,17 @@ namespace inflan_api.Repositories
                 .FirstOrDefaultAsync(i => i.UserId == userId);
         }
 
+        public async Task<Influencer?> FindBySocialAccount(string? instagram, string? youtube, string? tiktok, string? facebook)
+        {
+            // Check if any of the provided social accounts already exist in the database
+            // Only check non-empty values
+            return await _context.Influencers
+                .FirstOrDefaultAsync(i =>
+                    (!string.IsNullOrEmpty(instagram) && i.Instagram == instagram) ||
+                    (!string.IsNullOrEmpty(youtube) && i.YouTube == youtube) ||
+                    (!string.IsNullOrEmpty(tiktok) && i.TikTok == tiktok) ||
+                    (!string.IsNullOrEmpty(facebook) && i.Facebook == facebook)
+                );
+        }
     }
 }

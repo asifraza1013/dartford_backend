@@ -156,22 +156,40 @@ namespace inflan_api.Controllers
         }
 
         [HttpPut("updateUser/{id}")]
+        [Authorize]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> UpdateUser(int id, [FromForm] User user, IFormFile? file)
         {
+            // Verify the authenticated user matches the id being updated
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int authenticatedUserId = int.Parse(userIdClaim.Value);
+
+            // Only allow users to update their own profile (or add admin check if needed)
+            if (authenticatedUserId != id)
+                return StatusCode(403, new {
+                    message = "You can only update your own profile",
+                    code = "FORBIDDEN"
+                });
+
             var newImagePath = await _userService.SaveOrUpdateProfilePictureAsync(id, file);
             if (newImagePath != null)
                 user.ProfileImage = newImagePath;
             var updated = await _userService.UpdateUser(id, user);
             if (!updated)
-                return StatusCode(500,  new { 
+                return StatusCode(500,  new {
                     message = "Failed to update user information",
-                    code = Message.USER_UPDATE_FAILED 
+                    code = Message.USER_UPDATE_FAILED
                 });
 
-            return StatusCode(200, new { 
+            return StatusCode(200, new {
                 message = "User updated successfully",
-                code = Message.USER_UPDATED_SUCCESSFULLY 
+                code = Message.USER_UPDATED_SUCCESSFULLY
             });
         }
 

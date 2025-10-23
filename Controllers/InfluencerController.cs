@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using inflan_api.Interfaces;
 using inflan_api.Models;
+using inflan_api.DTOs;
 using inflan_api.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -279,21 +280,24 @@ namespace inflan_api.Controllers
         {
             User user = await _userService.GetUserById(userId);
             if (user == null)
-                return StatusCode(404, new { 
+                return StatusCode(404, new {
                     message = "User not found",
-                    code = Message.USER_NOT_FOUND 
+                    code = Message.USER_NOT_FOUND
                 });
 
-            user.UserName = influencer.UserName ??  user.UserName;
-            user.Name = influencer.Name ??  user.Name;
-            user.Email = influencer.Email ??  user.Email;
-            user.Password = influencer.Password ?? user.Password;
-            
-            var updatedUser = await _userService.UpdateUser(userId, user);
-            if (updatedUser == false)
-                return StatusCode(500, new { 
-                    message = "Failed to update user information",
-                    code = Message.INFLUENCER_USER_UPDATE_FAILED 
+            var userUpdateDto = new UpdateUserDto
+            {
+                UserName = influencer.UserName,
+                Name = influencer.Name,
+                Email = influencer.Email,
+                Password = influencer.Password
+            };
+
+            var (success, errorMessage) = await _userService.UpdateUser(userId, userUpdateDto);
+            if (!success)
+                return StatusCode(500, new {
+                    message = errorMessage ?? "Failed to update user information",
+                    code = Message.INFLUENCER_USER_UPDATE_FAILED
                 });
 
             if (influencer.Bio == null)

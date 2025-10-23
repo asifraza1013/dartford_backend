@@ -1,4 +1,5 @@
 ﻿using inflan_api.Models;
+using inflan_api.DTOs;
 
 namespace inflan_api.Interfaces
 {
@@ -7,7 +8,7 @@ namespace inflan_api.Interfaces
         Task<IEnumerable<User>> GetAllUsers();
         Task<User?> GetUserById(int id);
         Task<User> CreateUser(User user);
-        Task<bool> UpdateUser(int id, User user);
+        Task<(bool success, string? errorMessage)> UpdateUser(int id, UpdateUserDto userDto);
         Task<bool> DeleteUser(int id);
         Task<User?> GetByEmailAsync(string email);
         Task<User?> ValidateUserAsync(string email, string password);

@@ -2,6 +2,7 @@
 using inflan_api.Services;
 using inflan_api.Interfaces;
 using inflan_api.Models;
+using inflan_api.DTOs;
 using inflan_api.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -106,12 +107,11 @@ namespace inflan_api.Controllers
                     code = "INVALID_FILE" 
                 });
 
-            var user = await _userService.GetUserById(userId);
-            if (user == null)
-                return NotFound();
-
-            user.ProfileImage = relativePath;
-            await _userService.UpdateUser(userId, user);
+            var updateDto = new UpdateUserDto
+            {
+                ProfileImage = relativePath
+            };
+            await _userService.UpdateUser(userId, updateDto);
 
             return Ok(new { message = "Profile picture uploaded", path = relativePath });
         }
@@ -158,7 +158,7 @@ namespace inflan_api.Controllers
         [HttpPut("updateUser/{id}")]
         [Authorize]
         [Consumes("multipart/form-data")]
-        public async Task<IActionResult> UpdateUser(int id, [FromForm] User user, IFormFile? file)
+        public async Task<IActionResult> UpdateUser(int id, [FromForm] UpdateUserDto userDto, IFormFile? file)
         {
             // Verify the authenticated user matches the id being updated
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -177,13 +177,16 @@ namespace inflan_api.Controllers
                     code = "FORBIDDEN"
                 });
 
+            // Handle profile picture upload
             var newImagePath = await _userService.SaveOrUpdateProfilePictureAsync(id, file);
             if (newImagePath != null)
-                user.ProfileImage = newImagePath;
-            var updated = await _userService.UpdateUser(id, user);
-            if (!updated)
-                return StatusCode(500,  new {
-                    message = "Failed to update user information",
+                userDto.ProfileImage = newImagePath;
+
+            // Update user with DTO
+            var (success, errorMessage) = await _userService.UpdateUser(id, userDto);
+            if (!success)
+                return StatusCode(400,  new {
+                    message = errorMessage ?? "Failed to update user information",
                     code = Message.USER_UPDATE_FAILED
                 });
 

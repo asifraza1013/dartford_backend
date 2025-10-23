@@ -3,6 +3,7 @@ using System.Text;
 using inflan_api.Repositories;
 using inflan_api.Interfaces;
 using inflan_api.Models;
+using inflan_api.DTOs;
 
 namespace inflan_api.Services
 {
@@ -30,53 +31,78 @@ namespace inflan_api.Services
             return await _userRepository.Create(user);
         }
 
-        public async Task<bool> UpdateUser(int id, User user)
+        public async Task<(bool success, string? errorMessage)> UpdateUser(int id, UpdateUserDto userDto)
         {
             try
             {
                 Console.WriteLine($"UpdateUser called for ID: {id}");
-                Console.WriteLine($"User data received: Name={user.Name}, Email={user.Email}, BrandCategory={user.BrandCategory}, BrandSector={user.BrandSector}, Goals={user.Goals?.Count}");
-                
+                Console.WriteLine($"User data received: Name={userDto.Name}, Email={userDto.Email}, BrandCategory={userDto.BrandCategory}, BrandSector={userDto.BrandSector}, Goals={userDto.Goals?.Count}");
+
                 var existingUser = await _userRepository.GetById(id);
-                if (existingUser == null) 
+                if (existingUser == null)
                 {
                     Console.WriteLine($"User with ID {id} not found");
-                    return false;
+                    return (false, "User not found");
                 }
 
-                if (user.Name != null) existingUser.Name = user.Name;
-                if (user.UserName != null) existingUser.UserName = user.UserName;
-                if (user.Email != null)
+                // Only update fields that are provided (not null)
+                if (!string.IsNullOrWhiteSpace(userDto.Name))
+                    existingUser.Name = userDto.Name;
+
+                if (!string.IsNullOrWhiteSpace(userDto.UserName))
+                    existingUser.UserName = userDto.UserName;
+
+                if (!string.IsNullOrWhiteSpace(userDto.Email))
                 {
-                    var userExist = await GetByEmailAsync(user.Email);
+                    // Validate email format (already done by DTO validation attribute)
+                    var userExist = await GetByEmailAsync(userDto.Email);
                     // Only check for duplicate email if it's a different user (not the current one)
                     if (userExist != null && userExist.Id != id)
                     {
-                        Console.WriteLine($"Email {user.Email} already exists for another user");
-                        return false;
+                        Console.WriteLine($"Email {userDto.Email} already exists for another user");
+                        return (false, "Email already exists");
                     }
-                    existingUser.Email = user.Email;
+                    existingUser.Email = userDto.Email;
                 }
-                if (user.Password != null) existingUser.Password = user.Password;
-                if (user.BrandName != null) existingUser.BrandName = user.BrandName;
-                if (user.BrandCategory != null) existingUser.BrandCategory = user.BrandCategory;
-                if (user.BrandSector != null) existingUser.BrandSector = user.BrandSector;
-                if (user.Goals != null) existingUser.Goals = user.Goals;
-                if (user.ProfileImage != null) existingUser.ProfileImage = user.ProfileImage;
 
-                if (user.UserType != 0) existingUser.UserType = user.UserType;
-                if (user.Status != 0) existingUser.Status = user.Status;
+                if (!string.IsNullOrWhiteSpace(userDto.Password))
+                {
+                    // Password validation (min 6 chars) is already done by DTO validation attribute
+                    existingUser.Password = userDto.Password;
+                }
+
+                if (!string.IsNullOrWhiteSpace(userDto.BrandName))
+                    existingUser.BrandName = userDto.BrandName;
+
+                if (!string.IsNullOrWhiteSpace(userDto.BrandCategory))
+                    existingUser.BrandCategory = userDto.BrandCategory;
+
+                if (!string.IsNullOrWhiteSpace(userDto.BrandSector))
+                    existingUser.BrandSector = userDto.BrandSector;
+
+                if (userDto.Goals != null)
+                    existingUser.Goals = userDto.Goals;
+
+                if (!string.IsNullOrWhiteSpace(userDto.ProfileImage))
+                    existingUser.ProfileImage = userDto.ProfileImage;
+
+                // Handle optional integer fields
+                if (userDto.UserType.HasValue && userDto.UserType.Value != 0)
+                    existingUser.UserType = userDto.UserType.Value;
+
+                if (userDto.Status.HasValue)
+                    existingUser.Status = userDto.Status.Value;
 
                 Console.WriteLine("About to call repository update...");
                 await _userRepository.Update(existingUser);
                 Console.WriteLine("Repository update completed successfully");
-                return true;
+                return (true, null);
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in UpdateUser: {ex.Message}");
                 Console.WriteLine($"Stack trace: {ex.StackTrace}");
-                return false;
+                return (false, $"An error occurred: {ex.Message}");
             }
         }
 

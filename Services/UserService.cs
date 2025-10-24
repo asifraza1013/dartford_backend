@@ -4,16 +4,19 @@ using inflan_api.Repositories;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using inflan_api.DTOs;
+using inflan_api.Utils;
 
 namespace inflan_api.Services
 {
     public class UserService : IUserService
     {
         private readonly IUserRepository _userRepository;
+        private readonly IInfluencerService _influencerService;
 
-        public UserService(IUserRepository userRepository)
+        public UserService(IUserRepository userRepository, IInfluencerService influencerService)
         {
             _userRepository = userRepository;
+            _influencerService = influencerService;
         }
 
         public async Task<IEnumerable<User>> GetAllUsers()
@@ -96,6 +99,82 @@ namespace inflan_api.Services
                 Console.WriteLine("About to call repository update...");
                 await _userRepository.Update(existingUser);
                 Console.WriteLine("Repository update completed successfully");
+
+                // Update influencer data if user is an influencer and influencer fields are provided
+                if (existingUser.UserType == (int)UserType.INFLUENCER)
+                {
+                    bool hasInfluencerData = !string.IsNullOrWhiteSpace(userDto.Bio) ||
+                                            !string.IsNullOrWhiteSpace(userDto.YouTube) ||
+                                            !string.IsNullOrWhiteSpace(userDto.Instagram) ||
+                                            !string.IsNullOrWhiteSpace(userDto.Facebook) ||
+                                            !string.IsNullOrWhiteSpace(userDto.TikTok) ||
+                                            userDto.YouTubeFollower.HasValue ||
+                                            userDto.InstagramFollower.HasValue ||
+                                            userDto.FacebookFollower.HasValue ||
+                                            userDto.TikTokFollower.HasValue;
+
+                    if (hasInfluencerData)
+                    {
+                        Console.WriteLine("Updating influencer data...");
+                        var existingInfluencer = await _influencerService.GetInfluencerByUserId(id);
+
+                        if (existingInfluencer != null)
+                        {
+                            // Update existing influencer record
+                            if (!string.IsNullOrWhiteSpace(userDto.Bio))
+                                existingInfluencer.Bio = userDto.Bio;
+
+                            if (!string.IsNullOrWhiteSpace(userDto.YouTube))
+                                existingInfluencer.YouTube = userDto.YouTube;
+
+                            if (!string.IsNullOrWhiteSpace(userDto.Instagram))
+                                existingInfluencer.Instagram = userDto.Instagram;
+
+                            if (!string.IsNullOrWhiteSpace(userDto.Facebook))
+                                existingInfluencer.Facebook = userDto.Facebook;
+
+                            if (!string.IsNullOrWhiteSpace(userDto.TikTok))
+                                existingInfluencer.TikTok = userDto.TikTok;
+
+                            if (userDto.YouTubeFollower.HasValue)
+                                existingInfluencer.YouTubeFollower = userDto.YouTubeFollower.Value;
+
+                            if (userDto.InstagramFollower.HasValue)
+                                existingInfluencer.InstagramFollower = userDto.InstagramFollower.Value;
+
+                            if (userDto.FacebookFollower.HasValue)
+                                existingInfluencer.FacebookFollower = userDto.FacebookFollower.Value;
+
+                            if (userDto.TikTokFollower.HasValue)
+                                existingInfluencer.TikTokFollower = userDto.TikTokFollower.Value;
+
+                            await _influencerService.UpdateInfluencer(id, existingInfluencer);
+                            Console.WriteLine("Influencer data updated successfully");
+                        }
+                        else
+                        {
+                            // Create new influencer record if it doesn't exist
+                            Console.WriteLine("Creating new influencer record...");
+                            var newInfluencer = new Influencer
+                            {
+                                UserId = id,
+                                Bio = userDto.Bio ?? "",
+                                YouTube = userDto.YouTube,
+                                Instagram = userDto.Instagram,
+                                Facebook = userDto.Facebook,
+                                TikTok = userDto.TikTok,
+                                YouTubeFollower = userDto.YouTubeFollower ?? 0,
+                                InstagramFollower = userDto.InstagramFollower ?? 0,
+                                FacebookFollower = userDto.FacebookFollower ?? 0,
+                                TikTokFollower = userDto.TikTokFollower ?? 0
+                            };
+
+                            await _influencerService.CreateInfluencer(newInfluencer);
+                            Console.WriteLine("Influencer record created successfully");
+                        }
+                    }
+                }
+
                 return (true, null);
             }
             catch (Exception ex)

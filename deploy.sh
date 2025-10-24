@@ -17,7 +17,7 @@ ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ec2-user@13.40.44.150 << 'EOF'
 
 echo "📦 Deploying latest changes..."
 
-# Stop existing process
+# Stop existing processes
 echo "Stopping current API..."
 pkill -f dotnet || true
 sleep 5
@@ -26,8 +26,11 @@ sleep 5
 pkill -9 -f dotnet 2>/dev/null || true
 sleep 2
 
-# Pull latest code
+# Navigate to the CORRECT directory (inflat-api-server is the active one)
 cd /home/ec2-user/inflat-api-server
+
+# Pull latest code
+echo "Pulling latest code from master..."
 git pull origin master
 
 # Restore and build
@@ -35,13 +38,19 @@ echo "Building application..."
 dotnet restore
 dotnet build -c Release
 
-# Start application on port 8080 (the port nginx expects)
-echo "Starting API on port 8080..."
-nohup dotnet run > app.log 2>&1 &
+# Start application in Production mode with ALL required environment variables
+# Note: Using sh -c to ensure environment variables are passed correctly to dotnet
+echo "Starting API in Production mode with database connection..."
+nohup sh -c 'PORT=8080 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet run --environment Production' > app.log 2>&1 &
 
 # Wait for API to fully start
 echo "Waiting for API to start (30 seconds)..."
 sleep 30
+
+# Kill any duplicate process on port 10000 (sometimes dotnet spawns a second process)
+echo "Cleaning up any duplicate processes..."
+pkill -9 -f "urls=http://0.0.0.0:10000" 2>/dev/null || true
+sleep 2
 
 # Check what port API is actually running on
 API_PORT=$(tail -10 app.log | grep "Now listening" | grep -o '[0-9]*' | tail -1)

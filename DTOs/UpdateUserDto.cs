@@ -4,7 +4,7 @@ namespace inflan_api.DTOs
 {
     public class UpdateUserDto
     {
-        // All fields are optional for updates
+        // User basic fields - all optional for updates
         public string? Name { get; set; }
 
         public string? UserName { get; set; }
@@ -15,6 +15,9 @@ namespace inflan_api.DTOs
         [MinLength(6, ErrorMessage = "Password must be at least 6 characters")]
         public string? Password { get; set; }
 
+        public string? ProfileImage { get; set; }
+
+        // Brand-specific fields
         public string? BrandName { get; set; }
 
         public string? BrandCategory { get; set; }
@@ -23,12 +26,29 @@ namespace inflan_api.DTOs
 
         public List<string>? Goals { get; set; }
 
+        // Influencer-specific fields
+        public string? Bio { get; set; }
+
+        public string? YouTube { get; set; }
+
+        public string? Instagram { get; set; }
+
+        public string? Facebook { get; set; }
+
+        public string? TikTok { get; set; }
+
+        public int? YouTubeFollower { get; set; }
+
+        public int? InstagramFollower { get; set; }
+
+        public int? FacebookFollower { get; set; }
+
+        public int? TikTokFollower { get; set; }
+
         // UserType and Status are optional for updates
         // If provided as 0, they won't be updated
         public int? UserType { get; set; }
 
         public int? Status { get; set; }
-
-        public string? ProfileImage { get; set; }
     }
 }

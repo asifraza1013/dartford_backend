@@ -38,13 +38,20 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { 
+                return StatusCode(401, new {
                     message = "Unauthorized: Please login again",
-                    code = "INVALID_TOKEN" 
+                    code = "INVALID_TOKEN"
                 });
-            
+
             int userId = int.Parse(userIdClaim.Value);
             var user = await _userService.GetUserById(userId);
+
+            if (user == null)
+                return StatusCode(404, new {
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND
+                });
+
             int userType = user.UserType;
 
             if (userType == (int)UserType.BRAND)
@@ -64,7 +71,11 @@ namespace inflan_api.Controllers
                         missingStep = "Goals, Sector or Category missing"
                     });
                 }
-            }else if (user.UserType == (int)UserType.INFLUENCER)
+
+                // Return user data for brands
+                return Ok(new { user });
+            }
+            else if (user.UserType == (int)UserType.INFLUENCER)
             {
                 var influencer = await _influencerService.GetInfluencerByUserId(user.Id);
                 if (influencer == null)
@@ -72,18 +83,19 @@ namespace inflan_api.Controllers
                     return StatusCode(200, new
                     {
                         user,
+                        influencer = (object?)null,
                         message = "Please add your social media accounts",
                         code = Message.INFLUENCER_INFO_NOT_FILLED,
                         missingStep = "Socials missing"
                     });
                 }
-                // Note: We don't check for plans here because user might be in the process of creating them
-                // The frontend will handle navigation to package creation if needed
+
+                // Return both user and influencer data for influencers
+                return Ok(new { user, influencer });
             }
-            return user == null ? StatusCode(404, new { 
-                message = "User not found",
-                code = Message.USER_NOT_FOUND 
-            }) : Ok(user);
+
+            // Default return for other user types
+            return Ok(new { user });
         }
         
         [Authorize]

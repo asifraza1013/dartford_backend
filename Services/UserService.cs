@@ -12,11 +12,13 @@ namespace inflan_api.Services
     {
         private readonly IUserRepository _userRepository;
         private readonly IInfluencerService _influencerService;
+        private readonly IFollowerCountService _followerCountService;
 
-        public UserService(IUserRepository userRepository, IInfluencerService influencerService)
+        public UserService(IUserRepository userRepository, IInfluencerService influencerService, IFollowerCountService followerCountService)
         {
             _userRepository = userRepository;
             _influencerService = influencerService;
+            _followerCountService = followerCountService;
         }
 
         public async Task<IEnumerable<User>> GetAllUsers()
@@ -103,73 +105,139 @@ namespace inflan_api.Services
                 // Update influencer data if user is an influencer and influencer fields are provided
                 if (existingUser.UserType == (int)UserType.INFLUENCER)
                 {
-                    bool hasInfluencerData = !string.IsNullOrWhiteSpace(userDto.Bio) ||
-                                            !string.IsNullOrWhiteSpace(userDto.YouTube) ||
-                                            !string.IsNullOrWhiteSpace(userDto.Instagram) ||
-                                            !string.IsNullOrWhiteSpace(userDto.Facebook) ||
-                                            !string.IsNullOrWhiteSpace(userDto.TikTok) ||
-                                            userDto.YouTubeFollower.HasValue ||
-                                            userDto.InstagramFollower.HasValue ||
-                                            userDto.FacebookFollower.HasValue ||
-                                            userDto.TikTokFollower.HasValue;
+                    bool hasSocialMediaUpdate = !string.IsNullOrWhiteSpace(userDto.YouTube) ||
+                                               !string.IsNullOrWhiteSpace(userDto.Instagram) ||
+                                               !string.IsNullOrWhiteSpace(userDto.Facebook) ||
+                                               !string.IsNullOrWhiteSpace(userDto.TikTok);
 
-                    if (hasInfluencerData)
+                    bool hasBioUpdate = !string.IsNullOrWhiteSpace(userDto.Bio);
+
+                    if (hasSocialMediaUpdate || hasBioUpdate)
                     {
                         Console.WriteLine("Updating influencer data...");
                         var existingInfluencer = await _influencerService.GetInfluencerByUserId(id);
 
-                        if (existingInfluencer != null)
+                        if (existingInfluencer == null)
                         {
-                            // Update existing influencer record
-                            if (!string.IsNullOrWhiteSpace(userDto.Bio))
-                                existingInfluencer.Bio = userDto.Bio;
+                            existingInfluencer = new Influencer
+                            {
+                                UserId = id,
+                                Bio = "",
+                                Instagram = null,
+                                YouTube = null,
+                                Facebook = null,
+                                TikTok = null,
+                                InstagramFollower = 0,
+                                YouTubeFollower = 0,
+                                FacebookFollower = 0,
+                                TikTokFollower = 0
+                            };
+                        }
 
-                            if (!string.IsNullOrWhiteSpace(userDto.YouTube))
-                                existingInfluencer.YouTube = userDto.YouTube;
+                        // Update bio if provided
+                        if (hasBioUpdate)
+                            existingInfluencer.Bio = userDto.Bio;
 
-                            if (!string.IsNullOrWhiteSpace(userDto.Instagram))
-                                existingInfluencer.Instagram = userDto.Instagram;
+                        // If social media accounts are being updated, validate them with SocialBlade
+                        if (hasSocialMediaUpdate)
+                        {
+                            Console.WriteLine("Validating social media accounts with SocialBlade...");
 
-                            if (!string.IsNullOrWhiteSpace(userDto.Facebook))
-                                existingInfluencer.Facebook = userDto.Facebook;
+                            // Prepare the accounts to validate (use new values if provided, otherwise keep existing)
+                            string? instagramToValidate = userDto.Instagram ?? existingInfluencer.Instagram;
+                            string? youtubeToValidate = userDto.YouTube ?? existingInfluencer.YouTube;
+                            string? tiktokToValidate = userDto.TikTok ?? existingInfluencer.TikTok;
+                            string? facebookToValidate = userDto.Facebook ?? existingInfluencer.Facebook;
 
-                            if (!string.IsNullOrWhiteSpace(userDto.TikTok))
-                                existingInfluencer.TikTok = userDto.TikTok;
+                            // Get follower counts from SocialBlade
+                            var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
+                                instagramUsername: userDto.Instagram,
+                                youtubeChannelId: userDto.YouTube,
+                                tiktokUsername: userDto.TikTok,
+                                facebookUsername: userDto.Facebook
+                            );
 
-                            if (userDto.YouTubeFollower.HasValue)
-                                existingInfluencer.YouTubeFollower = userDto.YouTubeFollower.Value;
+                            var errors = new List<string>();
 
-                            if (userDto.InstagramFollower.HasValue)
-                                existingInfluencer.InstagramFollower = userDto.InstagramFollower.Value;
+                            // Validate Instagram
+                            if (!string.IsNullOrWhiteSpace(userDto.Instagram) && followerResults.ContainsKey("Instagram"))
+                            {
+                                var result = followerResults["Instagram"];
+                                if (result.Success && result.Followers > 0)
+                                {
+                                    existingInfluencer.Instagram = userDto.Instagram;
+                                    existingInfluencer.InstagramFollower = (int)result.Followers;
+                                }
+                                else
+                                {
+                                    errors.Add($"Instagram account '{userDto.Instagram}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                }
+                            }
 
-                            if (userDto.FacebookFollower.HasValue)
-                                existingInfluencer.FacebookFollower = userDto.FacebookFollower.Value;
+                            // Validate YouTube
+                            if (!string.IsNullOrWhiteSpace(userDto.YouTube) && followerResults.ContainsKey("YouTube"))
+                            {
+                                var result = followerResults["YouTube"];
+                                if (result.Success && result.Followers > 0)
+                                {
+                                    existingInfluencer.YouTube = userDto.YouTube;
+                                    existingInfluencer.YouTubeFollower = (int)result.Followers;
+                                }
+                                else
+                                {
+                                    errors.Add($"YouTube account '{userDto.YouTube}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                }
+                            }
 
-                            if (userDto.TikTokFollower.HasValue)
-                                existingInfluencer.TikTokFollower = userDto.TikTokFollower.Value;
+                            // Validate TikTok
+                            if (!string.IsNullOrWhiteSpace(userDto.TikTok) && followerResults.ContainsKey("TikTok"))
+                            {
+                                var result = followerResults["TikTok"];
+                                if (result.Success && result.Followers > 0)
+                                {
+                                    existingInfluencer.TikTok = userDto.TikTok;
+                                    existingInfluencer.TikTokFollower = (int)result.Followers;
+                                }
+                                else
+                                {
+                                    errors.Add($"TikTok account '{userDto.TikTok}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                }
+                            }
 
+                            // Validate Facebook (optional)
+                            if (!string.IsNullOrWhiteSpace(userDto.Facebook) && followerResults.ContainsKey("Facebook"))
+                            {
+                                var result = followerResults["Facebook"];
+                                if (result.Success && result.Followers > 0)
+                                {
+                                    existingInfluencer.Facebook = userDto.Facebook;
+                                    existingInfluencer.FacebookFollower = (int)result.Followers;
+                                }
+                                else
+                                {
+                                    errors.Add($"Facebook account '{userDto.Facebook}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                }
+                            }
+
+                            // If there are validation errors, return error
+                            if (errors.Any())
+                            {
+                                Console.WriteLine($"Social media validation failed: {string.Join(", ", errors)}");
+                                return (false, $"Social media validation failed: {string.Join("; ", errors)}");
+                            }
+
+                            Console.WriteLine("Social media accounts validated successfully");
+                        }
+
+                        // Update or create the influencer record
+                        if (existingInfluencer.Id > 0)
+                        {
                             await _influencerService.UpdateInfluencer(id, existingInfluencer);
                             Console.WriteLine("Influencer data updated successfully");
                         }
                         else
                         {
-                            // Create new influencer record if it doesn't exist
-                            Console.WriteLine("Creating new influencer record...");
-                            var newInfluencer = new Influencer
-                            {
-                                UserId = id,
-                                Bio = userDto.Bio ?? "",
-                                YouTube = userDto.YouTube,
-                                Instagram = userDto.Instagram,
-                                Facebook = userDto.Facebook,
-                                TikTok = userDto.TikTok,
-                                YouTubeFollower = userDto.YouTubeFollower ?? 0,
-                                InstagramFollower = userDto.InstagramFollower ?? 0,
-                                FacebookFollower = userDto.FacebookFollower ?? 0,
-                                TikTokFollower = userDto.TikTokFollower ?? 0
-                            };
-
-                            await _influencerService.CreateInfluencer(newInfluencer);
+                            await _influencerService.CreateInfluencer(existingInfluencer);
                             Console.WriteLine("Influencer record created successfully");
                         }
                     }

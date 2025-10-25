@@ -141,92 +141,111 @@ namespace inflan_api.Services
                         // If social media accounts are being updated, validate them with SocialBlade
                         if (hasSocialMediaUpdate)
                         {
-                            Console.WriteLine("Validating social media accounts with SocialBlade...");
+                            Console.WriteLine("Checking which social media accounts have changed...");
 
-                            // Prepare the accounts to validate (use new values if provided, otherwise keep existing)
-                            string? instagramToValidate = userDto.Instagram ?? existingInfluencer.Instagram;
-                            string? youtubeToValidate = userDto.YouTube ?? existingInfluencer.YouTube;
-                            string? tiktokToValidate = userDto.TikTok ?? existingInfluencer.TikTok;
-                            string? facebookToValidate = userDto.Facebook ?? existingInfluencer.Facebook;
+                            // Determine which accounts have actually changed
+                            bool instagramChanged = !string.IsNullOrWhiteSpace(userDto.Instagram) &&
+                                                   userDto.Instagram != existingInfluencer.Instagram;
+                            bool youtubeChanged = !string.IsNullOrWhiteSpace(userDto.YouTube) &&
+                                                 userDto.YouTube != existingInfluencer.YouTube;
+                            bool tiktokChanged = !string.IsNullOrWhiteSpace(userDto.TikTok) &&
+                                                userDto.TikTok != existingInfluencer.TikTok;
+                            bool facebookChanged = !string.IsNullOrWhiteSpace(userDto.Facebook) &&
+                                                  userDto.Facebook != existingInfluencer.Facebook;
 
-                            // Get follower counts from SocialBlade
-                            var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
-                                instagramUsername: userDto.Instagram,
-                                youtubeChannelId: userDto.YouTube,
-                                tiktokUsername: userDto.TikTok,
-                                facebookUsername: userDto.Facebook
-                            );
-
-                            var errors = new List<string>();
-
-                            // Validate Instagram
-                            if (!string.IsNullOrWhiteSpace(userDto.Instagram) && followerResults.ContainsKey("Instagram"))
+                            // Only validate accounts that have actually changed
+                            if (instagramChanged || youtubeChanged || tiktokChanged || facebookChanged)
                             {
-                                var result = followerResults["Instagram"];
-                                if (result.Success && result.Followers > 0)
-                                {
-                                    existingInfluencer.Instagram = userDto.Instagram;
-                                    existingInfluencer.InstagramFollower = (int)result.Followers;
-                                }
-                                else
-                                {
-                                    errors.Add($"Instagram account '{userDto.Instagram}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
-                                }
-                            }
+                                Console.WriteLine("Validating changed social media accounts with SocialBlade...");
+                                Console.WriteLine($"Instagram changed: {instagramChanged}, YouTube changed: {youtubeChanged}, TikTok changed: {tiktokChanged}, Facebook changed: {facebookChanged}");
 
-                            // Validate YouTube
-                            if (!string.IsNullOrWhiteSpace(userDto.YouTube) && followerResults.ContainsKey("YouTube"))
+                                // Get follower counts only for changed accounts
+                                var followerResults = await _followerCountService.GetAllPlatformFollowersAsync(
+                                    instagramUsername: instagramChanged ? userDto.Instagram : null,
+                                    youtubeChannelId: youtubeChanged ? userDto.YouTube : null,
+                                    tiktokUsername: tiktokChanged ? userDto.TikTok : null,
+                                    facebookUsername: facebookChanged ? userDto.Facebook : null
+                                );
+
+                                var errors = new List<string>();
+
+                                // Validate Instagram if changed
+                                if (instagramChanged && followerResults.ContainsKey("Instagram"))
+                                {
+                                    var result = followerResults["Instagram"];
+                                    if (result.Success && result.Followers > 0)
+                                    {
+                                        existingInfluencer.Instagram = userDto.Instagram;
+                                        existingInfluencer.InstagramFollower = (int)result.Followers;
+                                        Console.WriteLine($"Instagram validated: {userDto.Instagram} with {result.Followers} followers");
+                                    }
+                                    else
+                                    {
+                                        errors.Add($"Instagram account '{userDto.Instagram}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                    }
+                                }
+
+                                // Validate YouTube if changed
+                                if (youtubeChanged && followerResults.ContainsKey("YouTube"))
+                                {
+                                    var result = followerResults["YouTube"];
+                                    if (result.Success && result.Followers > 0)
+                                    {
+                                        existingInfluencer.YouTube = userDto.YouTube;
+                                        existingInfluencer.YouTubeFollower = (int)result.Followers;
+                                        Console.WriteLine($"YouTube validated: {userDto.YouTube} with {result.Followers} followers");
+                                    }
+                                    else
+                                    {
+                                        errors.Add($"YouTube account '{userDto.YouTube}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                    }
+                                }
+
+                                // Validate TikTok if changed
+                                if (tiktokChanged && followerResults.ContainsKey("TikTok"))
+                                {
+                                    var result = followerResults["TikTok"];
+                                    if (result.Success && result.Followers > 0)
+                                    {
+                                        existingInfluencer.TikTok = userDto.TikTok;
+                                        existingInfluencer.TikTokFollower = (int)result.Followers;
+                                        Console.WriteLine($"TikTok validated: {userDto.TikTok} with {result.Followers} followers");
+                                    }
+                                    else
+                                    {
+                                        errors.Add($"TikTok account '{userDto.TikTok}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                    }
+                                }
+
+                                // Validate Facebook if changed (optional)
+                                if (facebookChanged && followerResults.ContainsKey("Facebook"))
+                                {
+                                    var result = followerResults["Facebook"];
+                                    if (result.Success && result.Followers > 0)
+                                    {
+                                        existingInfluencer.Facebook = userDto.Facebook;
+                                        existingInfluencer.FacebookFollower = (int)result.Followers;
+                                        Console.WriteLine($"Facebook validated: {userDto.Facebook} with {result.Followers} followers");
+                                    }
+                                    else
+                                    {
+                                        errors.Add($"Facebook account '{userDto.Facebook}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
+                                    }
+                                }
+
+                                // If there are validation errors, return error
+                                if (errors.Any())
+                                {
+                                    Console.WriteLine($"Social media validation failed: {string.Join(", ", errors)}");
+                                    return (false, $"Social media validation failed: {string.Join("; ", errors)}");
+                                }
+
+                                Console.WriteLine("Changed social media accounts validated successfully");
+                            }
+                            else
                             {
-                                var result = followerResults["YouTube"];
-                                if (result.Success && result.Followers > 0)
-                                {
-                                    existingInfluencer.YouTube = userDto.YouTube;
-                                    existingInfluencer.YouTubeFollower = (int)result.Followers;
-                                }
-                                else
-                                {
-                                    errors.Add($"YouTube account '{userDto.YouTube}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
-                                }
+                                Console.WriteLine("No social media accounts have changed, skipping validation");
                             }
-
-                            // Validate TikTok
-                            if (!string.IsNullOrWhiteSpace(userDto.TikTok) && followerResults.ContainsKey("TikTok"))
-                            {
-                                var result = followerResults["TikTok"];
-                                if (result.Success && result.Followers > 0)
-                                {
-                                    existingInfluencer.TikTok = userDto.TikTok;
-                                    existingInfluencer.TikTokFollower = (int)result.Followers;
-                                }
-                                else
-                                {
-                                    errors.Add($"TikTok account '{userDto.TikTok}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
-                                }
-                            }
-
-                            // Validate Facebook (optional)
-                            if (!string.IsNullOrWhiteSpace(userDto.Facebook) && followerResults.ContainsKey("Facebook"))
-                            {
-                                var result = followerResults["Facebook"];
-                                if (result.Success && result.Followers > 0)
-                                {
-                                    existingInfluencer.Facebook = userDto.Facebook;
-                                    existingInfluencer.FacebookFollower = (int)result.Followers;
-                                }
-                                else
-                                {
-                                    errors.Add($"Facebook account '{userDto.Facebook}': {(result.Success ? "Account not found or has no followers" : result.ErrorMessage)}");
-                                }
-                            }
-
-                            // If there are validation errors, return error
-                            if (errors.Any())
-                            {
-                                Console.WriteLine($"Social media validation failed: {string.Join(", ", errors)}");
-                                return (false, $"Social media validation failed: {string.Join("; ", errors)}");
-                            }
-
-                            Console.WriteLine("Social media accounts validated successfully");
                         }
 
                         // Update or create the influencer record

@@ -67,9 +67,178 @@ namespace inflan_api.Services
         }
 
 
-        public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers()
+        public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null)
         {
-            return await _influencerRepository.GetAll();
+            var allInfluencers = await _influencerRepository.GetAll();
+            var filteredInfluencers = allInfluencers.AsEnumerable();
+
+            // Parse follower range if provided
+            int? minFollowers = null;
+            int? maxFollowers = null;
+            if (!string.IsNullOrWhiteSpace(followers))
+            {
+                (minFollowers, maxFollowers) = ParseFollowerRange(followers);
+            }
+
+            // Parse channels if provided
+            List<string>? channelList = null;
+            if (!string.IsNullOrWhiteSpace(channels))
+            {
+                channelList = channels.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                    .Select(c => c.Trim().ToLower())
+                                    .ToList();
+            }
+
+            // Apply filters
+            filteredInfluencers = filteredInfluencers.Where(influencer =>
+            {
+                // Search Query Filter - checks name and social media accounts
+                if (!string.IsNullOrWhiteSpace(searchQuery))
+                {
+                    var query = searchQuery.ToLower();
+                    bool matchesSearch = false;
+
+                    // Check if query matches name
+                    if (influencer.User?.Name != null && influencer.User.Name.ToLower().Contains(query))
+                    {
+                        matchesSearch = true;
+                    }
+
+                    // Check if query matches social media platform names
+                    if (!matchesSearch)
+                    {
+                        if ((query.Contains("instagram") && influencer.InstagramFollower > 0) ||
+                            (query.Contains("youtube") && influencer.YouTubeFollower > 0) ||
+                            (query.Contains("tiktok") && influencer.TikTokFollower > 0) ||
+                            (query.Contains("facebook") && influencer.FacebookFollower > 0))
+                        {
+                            matchesSearch = true;
+                        }
+                    }
+
+                    // Check if query matches social media usernames
+                    if (!matchesSearch)
+                    {
+                        if ((!string.IsNullOrEmpty(influencer.Instagram) && influencer.Instagram.ToLower().Contains(query)) ||
+                            (!string.IsNullOrEmpty(influencer.YouTube) && influencer.YouTube.ToLower().Contains(query)) ||
+                            (!string.IsNullOrEmpty(influencer.TikTok) && influencer.TikTok.ToLower().Contains(query)) ||
+                            (!string.IsNullOrEmpty(influencer.Facebook) && influencer.Facebook.ToLower().Contains(query)))
+                        {
+                            matchesSearch = true;
+                        }
+                    }
+
+                    if (!matchesSearch)
+                        return false;
+                }
+
+                // Channels Filter - if specified, influencer must have followers in at least one of the specified channels
+                if (channelList != null && channelList.Any())
+                {
+                    bool hasChannelWithFollowers = false;
+
+                    foreach (var channel in channelList)
+                    {
+                        if (channel == "instagram" && influencer.InstagramFollower > 0)
+                        {
+                            hasChannelWithFollowers = true;
+                            break;
+                        }
+                        if (channel == "youtube" && influencer.YouTubeFollower > 0)
+                        {
+                            hasChannelWithFollowers = true;
+                            break;
+                        }
+                        if (channel == "tiktok" && influencer.TikTokFollower > 0)
+                        {
+                            hasChannelWithFollowers = true;
+                            break;
+                        }
+                        if (channel == "facebook" && influencer.FacebookFollower > 0)
+                        {
+                            hasChannelWithFollowers = true;
+                            break;
+                        }
+                    }
+
+                    if (!hasChannelWithFollowers)
+                        return false;
+                }
+
+                // Follower Count Filter
+                if (minFollowers.HasValue || maxFollowers.HasValue)
+                {
+                    bool matchesFollowerRange = false;
+
+                    // If channels are specified, check follower count only for those channels
+                    if (channelList != null && channelList.Any())
+                    {
+                        foreach (var channel in channelList)
+                        {
+                            int followerCount = 0;
+
+                            if (channel == "instagram")
+                                followerCount = influencer.InstagramFollower;
+                            else if (channel == "youtube")
+                                followerCount = influencer.YouTubeFollower;
+                            else if (channel == "tiktok")
+                                followerCount = influencer.TikTokFollower;
+                            else if (channel == "facebook")
+                                followerCount = influencer.FacebookFollower;
+
+                            if (IsInFollowerRange(followerCount, minFollowers, maxFollowers))
+                            {
+                                matchesFollowerRange = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Check any social media platform
+                        matchesFollowerRange = IsInFollowerRange(influencer.InstagramFollower, minFollowers, maxFollowers) ||
+                                              IsInFollowerRange(influencer.YouTubeFollower, minFollowers, maxFollowers) ||
+                                              IsInFollowerRange(influencer.TikTokFollower, minFollowers, maxFollowers) ||
+                                              IsInFollowerRange(influencer.FacebookFollower, minFollowers, maxFollowers);
+                    }
+
+                    if (!matchesFollowerRange)
+                        return false;
+                }
+
+                return true;
+            });
+
+            return filteredInfluencers;
+        }
+
+        private (int? min, int? max) ParseFollowerRange(string followers)
+        {
+            followers = followers.Trim().ToLower();
+
+            return followers switch
+            {
+                "< 50k" or "<50k" or "under 50k" => (null, 50000),
+                "50k-100k" or "50-100k" => (50000, 100000),
+                "100k-250k" or "100-250k" => (100000, 250000),
+                "250k-500k" or "250-500k" => (250000, 500000),
+                "> 500k" or ">500k" or "500k+" or "over 500k" => (500000, null),
+                _ => (null, null)
+            };
+        }
+
+        private bool IsInFollowerRange(int followerCount, int? min, int? max)
+        {
+            if (followerCount <= 0)
+                return false;
+
+            if (min.HasValue && followerCount < min.Value)
+                return false;
+
+            if (max.HasValue && followerCount > max.Value)
+                return false;
+
+            return true;
         }
 
         public async Task<InfluencerUserModel?> GetInfluencerById(int id)

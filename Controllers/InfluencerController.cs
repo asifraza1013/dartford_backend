@@ -30,10 +30,23 @@ namespace inflan_api.Controllers
         }
 
         [HttpGet("getAllInfluencers")]
-        public async Task<IActionResult> GetAllInfluencers()
+        public async Task<IActionResult> GetAllInfluencers(
+            [FromQuery] string? searchQuery = null,
+            [FromQuery] string? followers = null,
+            [FromQuery] string? channels = null)
         {
-            var influencers = await _influencerService.GetAllInfluencers();
-            return Ok(influencers);
+            var influencers = await _influencerService.GetAllInfluencers(searchQuery, followers, channels);
+            return Ok(new
+            {
+                count = influencers.Count(),
+                filters = new
+                {
+                    searchQuery,
+                    followers,
+                    channels
+                },
+                data = influencers
+            });
         }
 
         [HttpGet("getInfluencerById/{id}")]

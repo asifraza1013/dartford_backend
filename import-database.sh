@@ -83,18 +83,12 @@ echo "Database: $DB_NAME"
 echo "User: $DB_USER"
 echo ""
 
-# Copy schema file into container
-docker cp $SCHEMA_FILE ${CONTAINER_NAME}:/tmp/schema.sql
-
-# Import the schema
-if docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME -f /tmp/schema.sql; then
+# Import the schema using pipe (works on both Windows and Mac)
+if cat $SCHEMA_FILE | docker exec -i $CONTAINER_NAME psql -U $DB_USER -d $DB_NAME; then
     echo ""
     echo -e "${GREEN}=========================================="
     echo "✓ Database schema imported successfully!"
     echo "==========================================${NC}"
-
-    # Clean up
-    docker exec $CONTAINER_NAME rm /tmp/schema.sql
 
     # Show table list
     echo ""

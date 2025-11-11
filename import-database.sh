@@ -17,7 +17,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration from docker-compose.yml
-CONTAINER_NAME="postgres"
+CONTAINER_NAME="dartford_backend-postgres-1"
 DB_NAME="inflan_db"
 DB_USER="postgres"
 DB_PASSWORD="postgres123"

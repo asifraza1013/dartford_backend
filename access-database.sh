@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-CONTAINER_NAME="postgres"
+CONTAINER_NAME="dartford_backend-postgres-1"
 DB_NAME="inflan_db"
 DB_USER="postgres"
 

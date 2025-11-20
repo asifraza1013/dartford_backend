@@ -60,7 +60,7 @@ public class PaymentService : IPaymentService
                 transaction.TransactionStatus = (int)PaymentStatus.FAILED;
                 transaction.FailureMessage = "Payment not succeeded.";
             }
-            await _campaignService.UpdateCampaign(transaction.CampaignId, new Campaign{PaymentStatus = paymentIntent.Status == "succeeded" ? 2 : 3});
+            await _campaignService.UpdateCampaign(transaction.CampaignId, new Campaign{PaymentStatus = paymentIntent.Status == "succeeded" ? (int)PaymentStatus.COMPLETED : (int)PaymentStatus.FAILED});
             
         }
         catch (StripeException ex)

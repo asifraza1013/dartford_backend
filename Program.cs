@@ -68,10 +68,15 @@ namespace inflan_api
             builder.Services.AddTransient<IInfluencerService, InfluencerService>();
             builder.Services.AddTransient<IPlanRepository, PlanRepository>();
             builder.Services.AddTransient<IPlanService, PlanService>();
-            // builder.Services.AddTransient<ITransactionRepository, TransactionRepository>();
+            builder.Services.AddTransient<ITransactionRepository, TransactionRepository>();
             builder.Services.AddTransient<ICampaignRepository, CampaignRepository>();
             builder.Services.AddTransient<ICampaignService, CampaignService>();
-            
+            builder.Services.AddTransient<IPaymentService, PaymentService>();
+
+            // Register PDF and Email services
+            builder.Services.AddTransient<IPdfGenerationService, PdfGenerationService>();
+            builder.Services.AddTransient<IEmailService, EmailService>();
+
             // Register follower count service with HTTP client
             builder.Services.AddHttpClient<IFollowerCountService, SocialBladeFollowerService>()
                 .AddPolicyHandler(HttpPolicyExtensions

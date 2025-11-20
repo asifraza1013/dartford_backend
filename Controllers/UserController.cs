@@ -104,9 +104,9 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return Unauthorized(new { 
+                return Unauthorized(new {
                     message = "Unauthorized: Please login again",
-                    code = "INVALID_TOKEN" 
+                    code = "INVALID_TOKEN"
                 });
 
             int userId = int.Parse(userIdClaim.Value);
@@ -114,9 +114,9 @@ namespace inflan_api.Controllers
             var relativePath = await _userService.SaveOrUpdateProfilePictureAsync(userId, file);
 
             if (relativePath == null)
-                return BadRequest(new { 
+                return BadRequest(new {
                     message = "Invalid file format or size",
-                    code = "INVALID_FILE" 
+                    code = "INVALID_FILE"
                 });
 
             var updateDto = new UpdateUserDto
@@ -126,6 +126,43 @@ namespace inflan_api.Controllers
             await _userService.UpdateUser(userId, updateDto);
 
             return Ok(new { message = "Profile picture uploaded", path = relativePath });
+        }
+
+        [Authorize]
+        [HttpPost("uploadProfileImage/{id}")]
+        public async Task<IActionResult> UploadProfileImage(int id, IFormFile profileImage)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return Unauthorized(new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int authenticatedUserId = int.Parse(userIdClaim.Value);
+
+            // Only allow users to update their own profile
+            if (authenticatedUserId != id)
+                return StatusCode(403, new {
+                    message = "You can only update your own profile",
+                    code = "FORBIDDEN"
+                });
+
+            var relativePath = await _userService.SaveOrUpdateProfilePictureAsync(id, profileImage);
+
+            if (relativePath == null)
+                return BadRequest(new {
+                    message = "Invalid file format or size",
+                    code = "INVALID_FILE"
+                });
+
+            var updateDto = new UpdateUserDto
+            {
+                ProfileImage = relativePath
+            };
+            await _userService.UpdateUser(id, updateDto);
+
+            return Ok(new { message = "Profile picture uploaded successfully", path = relativePath });
         }
 
 

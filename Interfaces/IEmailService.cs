@@ -26,4 +26,14 @@ public interface IEmailService
     /// Sends email notification to influencer when a new campaign booking is created
     /// </summary>
     Task SendNewCampaignNotificationAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName);
+
+    /// <summary>
+    /// Sends email notification to influencer requesting review and approval of signed contract
+    /// </summary>
+    Task SendSignedContractReviewRequestAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName);
+
+    /// <summary>
+    /// Sends email notification to brand requesting contract revision after influencer rejection
+    /// </summary>
+    Task SendContractRevisionRequestAsync(string brandEmail, string brandName, int campaignId, string projectName, string? reason = null);
 }

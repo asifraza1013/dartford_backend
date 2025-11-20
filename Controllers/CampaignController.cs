@@ -416,6 +416,58 @@ namespace inflan_api.Controllers
             });
         }
 
+        [HttpPost("approveSignedContract/{campaignId}")]
+        [Authorize]
+        public async Task<IActionResult> ApproveSignedContract(int campaignId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int influencerId = int.Parse(userIdClaim.Value);
+            var (success, message) = await _campaignService.ApproveSignedContractAsync(campaignId, influencerId);
+
+            if (!success)
+                return StatusCode(400, new {
+                    message,
+                    code = "CONTRACT_APPROVAL_FAILED"
+                });
+
+            return Ok(new {
+                message,
+                code = "CONTRACT_APPROVED"
+            });
+        }
+
+        [HttpPost("rejectSignedContract/{campaignId}")]
+        [Authorize]
+        public async Task<IActionResult> RejectSignedContract(int campaignId, [FromBody] RejectContractRequest? request = null)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int influencerId = int.Parse(userIdClaim.Value);
+            var (success, message) = await _campaignService.RejectSignedContractAsync(campaignId, influencerId, request?.Reason);
+
+            if (!success)
+                return StatusCode(400, new {
+                    message,
+                    code = "CONTRACT_REJECTION_FAILED"
+                });
+
+            return Ok(new {
+                message,
+                code = "CONTRACT_REJECTED"
+            });
+        }
+
         [HttpGet("downloadContract/{campaignId}")]
         [Authorize]
         public async Task<IActionResult> DownloadContract(int campaignId)
@@ -507,5 +559,10 @@ namespace inflan_api.Controllers
             var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
             return File(fileBytes, "application/pdf", $"signed_contract_{campaignId}.pdf");
         }
+    }
+
+    public class RejectContractRequest
+    {
+        public string? Reason { get; set; }
     }
 }

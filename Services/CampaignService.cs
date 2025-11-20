@@ -374,24 +374,25 @@ public class CampaignService : ICampaignService
             var relativePath = $"/contracts/signed/{fileName}";
             campaign.SignedContractPdfPath = relativePath;
             campaign.ContractSignedAt = DateTime.UtcNow;
-            campaign.CampaignStatus = (int)CampaignStatus.AWAITING_PAYMENT;
+            campaign.CampaignStatus = (int)CampaignStatus.AWAITING_SIGNATURE_APPROVAL;
 
             await _campaignRepository.Update(campaign);
 
-            // Send payment notification email to brand
+            // Send notification to influencer to review signed contract
+            var influencer = await _userService.GetUserById(campaign.InfluencerId);
             var brand = await _userService.GetUserById(campaign.BrandId);
-            if (brand != null)
+            if (influencer != null && brand != null)
             {
-                await _emailService.SendPaymentRequestAsync(
-                    brand.Email ?? "",
-                    brand.Name ?? "",
+                await _emailService.SendSignedContractReviewRequestAsync(
+                    influencer.Email ?? "",
+                    influencer.Name ?? "",
                     campaign.Id,
-                    (decimal)campaign.Amount,
-                    campaign.Currency ?? "USD"
+                    campaign.ProjectName ?? "Campaign",
+                    brand.Name ?? "Brand"
                 );
             }
 
-            return (true, "Signed contract uploaded successfully. Payment notification sent.");
+            return (true, "Signed contract uploaded successfully. Awaiting influencer approval.");
         }
         catch (Exception ex)
         {
@@ -431,5 +432,77 @@ public class CampaignService : ICampaignService
         }
 
         return (true, "Campaign activated successfully");
+    }
+
+    public async Task<(bool Success, string Message)> ApproveSignedContractAsync(int campaignId, int influencerId)
+    {
+        var campaign = await _campaignRepository.GetById(campaignId);
+
+        if (campaign == null)
+            return (false, "Campaign not found");
+
+        if (campaign.InfluencerId != influencerId)
+            return (false, "You are not authorized to approve this contract");
+
+        if (campaign.CampaignStatus != (int)CampaignStatus.AWAITING_SIGNATURE_APPROVAL)
+            return (false, "Campaign is not awaiting signature approval");
+
+        // Update status to awaiting payment
+        campaign.CampaignStatus = (int)CampaignStatus.AWAITING_PAYMENT;
+        campaign.SignatureApprovedAt = DateTime.UtcNow;
+
+        await _campaignRepository.Update(campaign);
+
+        // Send payment request email to brand
+        var brand = await _userService.GetUserById(campaign.BrandId);
+        if (brand != null)
+        {
+            await _emailService.SendPaymentRequestAsync(
+                brand.Email ?? "",
+                brand.Name ?? "",
+                campaign.Id,
+                (decimal)campaign.Amount,
+                campaign.Currency ?? "USD"
+            );
+        }
+
+        return (true, "Signed contract approved successfully. Payment request sent to brand.");
+    }
+
+    public async Task<(bool Success, string Message)> RejectSignedContractAsync(int campaignId, int influencerId, string? reason = null)
+    {
+        var campaign = await _campaignRepository.GetById(campaignId);
+
+        if (campaign == null)
+            return (false, "Campaign not found");
+
+        if (campaign.InfluencerId != influencerId)
+            return (false, "You are not authorized to reject this contract");
+
+        if (campaign.CampaignStatus != (int)CampaignStatus.AWAITING_SIGNATURE_APPROVAL)
+            return (false, "Campaign is not awaiting signature approval");
+
+        // Reset status back to awaiting contract signature
+        campaign.CampaignStatus = (int)CampaignStatus.AWAITING_CONTRACT_SIGNATURE;
+        // Clear the signed contract path so brand can upload new one
+        campaign.SignedContractPdfPath = null;
+        campaign.ContractSignedAt = null;
+
+        await _campaignRepository.Update(campaign);
+
+        // Send email to brand requesting contract revision
+        var brand = await _userService.GetUserById(campaign.BrandId);
+        if (brand != null)
+        {
+            await _emailService.SendContractRevisionRequestAsync(
+                brand.Email ?? "",
+                brand.Name ?? "",
+                campaign.Id,
+                campaign.ProjectName ?? "Campaign",
+                reason
+            );
+        }
+
+        return (true, "Signed contract rejected. Brand has been notified to revise and sign properly.");
     }
 }

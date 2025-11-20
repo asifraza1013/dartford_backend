@@ -21,5 +21,7 @@ public interface ICampaignService
     Task<(bool Success, string Message, Campaign? Campaign)> AcceptCampaignAsync(int campaignId, int influencerId);
     Task<(bool Success, string Message)> RejectCampaignAsync(int campaignId, int influencerId);
     Task<(bool Success, string Message)> UploadSignedContractAsync(int campaignId, int brandId, IFormFile signedContract);
+    Task<(bool Success, string Message)> ApproveSignedContractAsync(int campaignId, int influencerId);
+    Task<(bool Success, string Message)> RejectSignedContractAsync(int campaignId, int influencerId, string? reason = null);
     Task<(bool Success, string Message)> ActivateCampaignAfterPaymentAsync(int campaignId);
 }

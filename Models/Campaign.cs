@@ -42,6 +42,8 @@ public class Campaign
 
     public DateTime? ContractSignedAt { get; set; }
 
+    public DateTime? SignatureApprovedAt { get; set; }
+
     // Pricing
     public string? Currency { get; set; }
 

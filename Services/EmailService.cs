@@ -484,4 +484,126 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(influencerEmail, subject, body);
     }
+
+    public async Task SendSignedContractReviewRequestAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName)
+    {
+        var subject = $"Action Required: Review Signed Contract for Campaign #{campaignId}";
+
+        var content = $@"
+            <div style=""background-color: #F0F7FF; border-left: 4px solid #3B71FE; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    📄 Signed Contract Received
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    {brandName} has uploaded the signed contract for your campaign. Please review and approve it to proceed.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Brand Name</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #3B71FE; font-family: 'Inter', Arial, sans-serif;"">{brandName}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign Name</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign ID</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{campaignId}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                Please review the signed contract carefully. You can download it, approve it, or reject it if there are any issues. If you reject it, the brand will be notified to revise and resubmit the contract.
+            </p>
+
+            <div style=""background-color: #FFFBEB; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0; font-size: 14px; line-height: 1.5; color: #92400E; font-family: 'Inter', Arial, sans-serif;"">
+                    <strong>⏰ Next Steps:</strong> Once you approve the contract, the brand will receive a payment request to activate the campaign.
+                </p>
+            </div>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/bookings";
+        var body = GetEmailTemplate(
+            "Review Signed Contract",
+            $"Dear {influencerName},",
+            content,
+            "Review Signed Contract",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
+    public async Task SendContractRevisionRequestAsync(string brandEmail, string brandName, int campaignId, string projectName, string? reason = null)
+    {
+        var subject = $"Contract Revision Required: Campaign #{campaignId}";
+
+        var reasonSection = !string.IsNullOrEmpty(reason)
+            ? $@"
+                <div style=""background-color: #FFF4ED; border-left: 4px solid #F79009; padding: 16px; border-radius: 8px; margin: 20px 0;"">
+                    <p style=""margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                        Reason for Rejection:
+                    </p>
+                    <p style=""margin: 0; font-size: 14px; line-height: 1.5; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                        {reason}
+                    </p>
+                </div>"
+            : "";
+
+        var content = $@"
+            <div style=""background-color: #FFF4ED; border-left: 4px solid #F79009; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    ⚠️ Contract Revision Needed
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    The influencer has reviewed your signed contract and requested revisions before proceeding.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0;"">
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign Name</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign ID</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{campaignId}</p>
+                    </td>
+                </tr>
+            </table>
+
+            {reasonSection}
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                Please review the original contract, make the necessary corrections, and upload the revised signed contract through your dashboard. Once the corrected contract is uploaded, the influencer will review it again.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/brand/dashboard/bookings";
+        var body = GetEmailTemplate(
+            "Contract Revision Required",
+            $"Dear {brandName},",
+            content,
+            "Review & Resubmit Contract",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(brandEmail, subject, body);
+    }
 }

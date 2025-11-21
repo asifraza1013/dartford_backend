@@ -4,6 +4,7 @@ public class CampaignResponseDto
 {
     public int Id { get; set; }
     public int PlanId { get; set; }
+    public string? PlanName { get; set; }
     public string ProjectName { get; set; } = string.Empty;
     public string? AboutProject { get; set; }
     public DateOnly CampaignStartDate { get; set; }

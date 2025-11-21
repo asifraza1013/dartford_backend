@@ -14,12 +14,14 @@ namespace inflan_api.Controllers
         private readonly ICampaignService _campaignService;
         private readonly IUserService _userService;
         private readonly IInfluencerService _influencerService;
+        private readonly IPlanService _planService;
 
-        public CampaignController(ICampaignService campaignService, IUserService userService, IInfluencerService influencerService)
+        public CampaignController(ICampaignService campaignService, IUserService userService, IInfluencerService influencerService, IPlanService planService)
         {
             _campaignService = campaignService;
             _userService = userService;
             _influencerService = influencerService;
+            _planService = planService;
         }
 
         [HttpGet("getAllCampaigns")]
@@ -42,11 +44,13 @@ namespace inflan_api.Controllers
             // Enrich with influencer data
             var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
             var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+            var plan = await _planService.GetPlanById(campaign.PlanId);
 
             var enrichedCampaign = new DTOs.CampaignResponseDto
             {
                 Id = campaign.Id,
                 PlanId = campaign.PlanId,
+                PlanName = plan?.PlanName,
                 ProjectName = campaign.ProjectName,
                 AboutProject = campaign.AboutProject,
                 CampaignStartDate = campaign.CampaignStartDate,
@@ -152,11 +156,13 @@ namespace inflan_api.Controllers
                 var brandUser = await _userService.GetUserById(campaign.BrandId);
                 var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
                 var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+                var plan = await _planService.GetPlanById(campaign.PlanId);
 
                 enrichedCampaigns.Add(new DTOs.CampaignResponseDto
                 {
                     Id = campaign.Id,
                     PlanId = campaign.PlanId,
+                    PlanName = plan?.PlanName,
                     ProjectName = campaign.ProjectName,
                     AboutProject = campaign.AboutProject,
                     CampaignStartDate = campaign.CampaignStartDate,
@@ -221,11 +227,13 @@ namespace inflan_api.Controllers
                 var brandUser = await _userService.GetUserById(campaign.BrandId);
                 var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
                 var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+                var plan = await _planService.GetPlanById(campaign.PlanId);
 
                 enrichedCampaigns.Add(new DTOs.CampaignResponseDto
                 {
                     Id = campaign.Id,
                     PlanId = campaign.PlanId,
+                    PlanName = plan?.PlanName,
                     ProjectName = campaign.ProjectName,
                     AboutProject = campaign.AboutProject,
                     CampaignStartDate = campaign.CampaignStartDate,

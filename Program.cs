@@ -155,21 +155,22 @@ namespace inflan_api
 
             var app = builder.Build();
 
-            // Run database migrations on startup
-            using (var scope = app.Services.CreateScope())
-            {
-                try 
-                {
-                    var context = scope.ServiceProvider.GetRequiredService<InflanDBContext>();
-                    context.Database.Migrate();
-                }
-                catch (Exception ex)
-                {
-                    // Log migration error but don't fail startup
-                    Console.WriteLine($"Migration failed: {ex.Message}");
-                    Console.WriteLine("Continuing without migration...");
-                }
-            }
+            // Skip auto-migration - migrations are already applied and auto-migrate causes issues
+            // Run migrations manually with: dotnet ef database update
+            // using (var scope = app.Services.CreateScope())
+            // {
+            //     try
+            //     {
+            //         var context = scope.ServiceProvider.GetRequiredService<InflanDBContext>();
+            //         context.Database.Migrate();
+            //     }
+            //     catch (Exception ex)
+            //     {
+            //         // Log migration error but don't fail startup
+            //         Console.WriteLine($"Migration failed: {ex.Message}");
+            //         Console.WriteLine("Continuing without migration...");
+            //     }
+            // }
 
             // Configure the HTTP request pipeline.
             // if (app.Environment.IsDevelopment())

@@ -38,6 +38,10 @@ echo "Building application..."
 dotnet restore
 dotnet build -c Release
 
+# Run database migrations
+echo "Running database migrations..."
+ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet ef database update
+
 # Start application in Production mode with ALL required environment variables
 # Note: Using sh -c to ensure environment variables are passed correctly to dotnet
 echo "Starting API in Production mode with database connection..."

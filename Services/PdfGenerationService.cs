@@ -113,34 +113,26 @@ public class PdfGenerationService : IPdfGenerationService
                                     text.Span(campaign.AboutProject ?? campaign.ProjectName);
                                 });
 
+                                // Add Plan Name
+                                if (!string.IsNullOrEmpty(plan.PlanName))
+                                {
+                                    scopeCol.Item().Text(text =>
+                                    {
+                                        text.Span("●  ");
+                                        text.Span("Selected Plan: ").Bold();
+                                        text.Span(plan.PlanName);
+                                    });
+                                }
+
+                                // Add Plan Details/Description
                                 if (plan.PlanDetails != null && plan.PlanDetails.Any())
                                 {
                                     scopeCol.Item().Text(text =>
                                     {
                                         text.Span("●  ");
-                                        text.Span("Deliverables: ").Bold();
+                                        text.Span("Plan Description: ").Bold();
                                         text.Span(string.Join(", ", plan.PlanDetails));
                                     });
-                                }
-
-                                // Add platforms if influencer profile is available
-                                if (influencerProfile != null)
-                                {
-                                    var platforms = new List<string>();
-                                    if (!string.IsNullOrEmpty(influencerProfile.Instagram)) platforms.Add("Instagram");
-                                    if (!string.IsNullOrEmpty(influencerProfile.TikTok)) platforms.Add("TikTok");
-                                    if (!string.IsNullOrEmpty(influencerProfile.YouTube)) platforms.Add("YouTube");
-                                    if (!string.IsNullOrEmpty(influencerProfile.Facebook)) platforms.Add("Facebook");
-
-                                    if (platforms.Any())
-                                    {
-                                        scopeCol.Item().Text(text =>
-                                        {
-                                            text.Span("●  ");
-                                            text.Span("Platforms: ").Bold();
-                                            text.Span(string.Join(", ", platforms));
-                                        });
-                                    }
                                 }
 
                                 scopeCol.Item().Text(text =>
@@ -303,18 +295,21 @@ public class PdfGenerationService : IPdfGenerationService
 
                                 row.Spacing(40);
 
-                                // Influencer Signature
+                                // Influencer Section (pre-filled with acceptance details)
                                 row.RelativeItem().Column(influencerSignCol =>
                                 {
                                     influencerSignCol.Item().Text("For the Influencer:").Bold();
                                     influencerSignCol.Item().PaddingTop(10).Text("Name").Bold();
-                                    influencerSignCol.Item().PaddingTop(20).LineHorizontal(1).LineColor(Colors.Grey.Medium);
+                                    influencerSignCol.Item().PaddingTop(5).Text(influencer.Name ?? "");
+                                    influencerSignCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Medium);
 
-                                    influencerSignCol.Item().PaddingTop(10).Text("Signature").Bold();
-                                    influencerSignCol.Item().PaddingTop(20).LineHorizontal(1).LineColor(Colors.Grey.Medium);
+                                    influencerSignCol.Item().PaddingTop(10).Text("Status").Bold();
+                                    influencerSignCol.Item().PaddingTop(5).Text("Accepted");
+                                    influencerSignCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Medium);
 
-                                    influencerSignCol.Item().PaddingTop(10).Text("Date").Bold();
-                                    influencerSignCol.Item().PaddingTop(20).LineHorizontal(1).LineColor(Colors.Grey.Medium);
+                                    influencerSignCol.Item().PaddingTop(10).Text("Date Accepted").Bold();
+                                    influencerSignCol.Item().PaddingTop(5).Text(campaign.InfluencerAcceptedAt?.ToString("dd/MM/yyyy") ?? DateTime.UtcNow.ToString("dd/MM/yyyy"));
+                                    influencerSignCol.Item().PaddingTop(5).LineHorizontal(1).LineColor(Colors.Grey.Medium);
                                 });
                             });
                         });

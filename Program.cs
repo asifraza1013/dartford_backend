@@ -7,6 +7,7 @@ using inflan_api.Interfaces;
 using inflan_api.Repositories;
 using inflan_api.Services;
 using inflan_api.Models;
+using inflan_api.Hubs;
 using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Extensions.Http;
@@ -77,6 +78,13 @@ namespace inflan_api
             builder.Services.AddTransient<IPdfGenerationService, PdfGenerationService>();
             builder.Services.AddTransient<IEmailService, EmailService>();
 
+            // Register Chat services
+            builder.Services.AddScoped<IChatRepository, ChatRepository>();
+            builder.Services.AddScoped<IChatService, ChatService>();
+
+            // Add SignalR
+            builder.Services.AddSignalR();
+
             // Register follower count service with HTTP client
             builder.Services.AddHttpClient<IFollowerCountService, SocialBladeFollowerService>()
                 .AddPolicyHandler(HttpPolicyExtensions
@@ -110,6 +118,23 @@ namespace inflan_api
                     ValidateIssuer = false,
                     ValidateAudience = false,
                     ClockSkew = TimeSpan.Zero
+                };
+
+                // Configure JWT for SignalR - read token from query string
+                x.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        var accessToken = context.Request.Query["access_token"];
+                        var path = context.HttpContext.Request.Path;
+
+                        // If the request is for our hub, read the token from query string
+                        if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs/chat"))
+                        {
+                            context.Token = accessToken;
+                        }
+                        return Task.CompletedTask;
+                    }
                 };
             });
             
@@ -149,6 +174,16 @@ namespace inflan_api
                         .AllowAnyOrigin()
                         .AllowAnyMethod()
                         .AllowAnyHeader();
+                });
+
+                // SignalR requires credentials, so we need a specific policy
+                options.AddPolicy("SignalRPolicy", policy =>
+                {
+                    policy
+                        .SetIsOriginAllowed(_ => true) // Allow any origin
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials(); // Required for SignalR
                 });
             });
 
@@ -196,6 +231,9 @@ namespace inflan_api
 
             app.UseStaticFiles();
             app.MapControllers();
+
+            // Map SignalR hub with CORS policy that supports credentials
+            app.MapHub<ChatHub>("/hubs/chat").RequireCors("SignalRPolicy");
 
             var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
             app.Urls.Add($"http://*:{port}");

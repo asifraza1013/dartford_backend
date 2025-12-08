@@ -14,6 +14,8 @@ namespace inflan_api.MyDBContext
         public DbSet<Plan> Plans { get; set; }
         public DbSet<Campaign> Campaigns { get; set; }
         public DbSet<Transaction> Transactions { get; set; }
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -71,6 +73,56 @@ namespace inflan_api.MyDBContext
             modelBuilder.Entity<Transaction>()
                 .HasIndex(t => t.TransactionId)
                 .IsUnique();
+
+            // Conversation → User (Brand)
+            modelBuilder.Entity<Conversation>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(c => c.BrandId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Conversation → User (Influencer)
+            modelBuilder.Entity<Conversation>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(c => c.InfluencerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Conversation → Campaign (Optional)
+            modelBuilder.Entity<Conversation>()
+                .HasOne<Campaign>()
+                .WithMany()
+                .HasForeignKey(c => c.CampaignId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ChatMessage → Conversation
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ChatMessage → User (Sender)
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ChatMessage → User (Recipient)
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne<User>()
+                .WithMany()
+                .HasForeignKey(m => m.RecipientId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Index for faster conversation lookups
+            modelBuilder.Entity<Conversation>()
+                .HasIndex(c => new { c.BrandId, c.InfluencerId });
+
+            // Index for faster message lookups
+            modelBuilder.Entity<ChatMessage>()
+                .HasIndex(m => m.ConversationId);
         }
 
     }

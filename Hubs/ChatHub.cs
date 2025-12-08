@@ -11,13 +11,15 @@ namespace inflan_api.Hubs
     {
         private readonly IChatService _chatService;
         private readonly IUserService _userService;
+        private readonly INotificationService _notificationService;
         private static readonly Dictionary<int, HashSet<string>> _userConnections = new();
         private static readonly object _lock = new();
 
-        public ChatHub(IChatService chatService, IUserService userService)
+        public ChatHub(IChatService chatService, IUserService userService, INotificationService notificationService)
         {
             _chatService = chatService;
             _userService = userService;
+            _notificationService = notificationService;
         }
 
         public override async Task OnConnectedAsync()
@@ -160,6 +162,38 @@ namespace inflan_api.Hubs
                 ConversationId = conversationId,
                 Message = messageDto
             });
+
+            // Create notification for recipient if they're not in the conversation
+            // Check if recipient is currently in this conversation
+            bool recipientInConversation = false;
+            lock (_lock)
+            {
+                // We'll always create notification - the frontend will handle display logic
+                // Notifications are useful for when user refreshes or comes back later
+            }
+
+            // Create in-app notification
+            try
+            {
+                var sender = await _userService.GetUserById(userId);
+                var senderName = sender?.UserType == 2 ? (sender?.BrandName ?? sender?.Name) : sender?.Name;
+                var messagePreview = string.IsNullOrEmpty(content) ? "[Attachment]" : content;
+
+                var notification = await _notificationService.CreateMessageNotificationAsync(
+                    messageDto.RecipientId,
+                    userId,
+                    senderName ?? "Unknown",
+                    conversationId,
+                    messagePreview
+                );
+
+                // Send real-time notification to recipient
+                await Clients.Group($"user_{messageDto.RecipientId}").SendAsync("NewNotification", notification);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to create notification: {ex.Message}");
+            }
 
             Console.WriteLine($"Message sent from {userId} in conversation {conversationId}");
         }

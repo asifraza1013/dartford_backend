@@ -82,6 +82,10 @@ namespace inflan_api
             builder.Services.AddScoped<IChatRepository, ChatRepository>();
             builder.Services.AddScoped<IChatService, ChatService>();
 
+            // Register Notification services
+            builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+            builder.Services.AddScoped<INotificationService, NotificationService>();
+
             // Add SignalR
             builder.Services.AddSignalR();
 

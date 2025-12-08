@@ -16,6 +16,7 @@ namespace inflan_api.MyDBContext
         public DbSet<Transaction> Transactions { get; set; }
         public DbSet<Conversation> Conversations { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -123,6 +124,20 @@ namespace inflan_api.MyDBContext
             // Index for faster message lookups
             modelBuilder.Entity<ChatMessage>()
                 .HasIndex(m => m.ConversationId);
+
+            // Notification → User
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Index for faster notification lookups
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.UserId, n.IsRead });
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => n.CreatedAt);
         }
 
     }

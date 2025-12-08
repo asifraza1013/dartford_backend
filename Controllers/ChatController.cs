@@ -15,11 +15,19 @@ namespace inflan_api.Controllers
     {
         private readonly IChatService _chatService;
         private readonly IHubContext<ChatHub> _hubContext;
+        private readonly INotificationService _notificationService;
+        private readonly IUserService _userService;
 
-        public ChatController(IChatService chatService, IHubContext<ChatHub> hubContext)
+        public ChatController(
+            IChatService chatService,
+            IHubContext<ChatHub> hubContext,
+            INotificationService notificationService,
+            IUserService userService)
         {
             _chatService = chatService;
             _hubContext = hubContext;
+            _notificationService = notificationService;
+            _userService = userService;
         }
 
         /// <summary>
@@ -149,6 +157,9 @@ namespace inflan_api.Controllers
                 Message = messageDto
             });
 
+            // Create notification for recipient
+            await CreateMessageNotification(userId, messageDto.RecipientId, request.ConversationId, request.Content ?? "");
+
             return Ok(new { message = "Message sent", data = messageDto });
         }
 
@@ -181,6 +192,9 @@ namespace inflan_api.Controllers
                 ConversationId = conversationId,
                 Message = messageDto
             });
+
+            // Create notification for recipient
+            await CreateMessageNotification(userId, messageDto.RecipientId, conversationId, content ?? "");
 
             return Ok(new { message = "Message sent", data = messageDto });
         }
@@ -259,6 +273,43 @@ namespace inflan_api.Controllers
             if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
                 return 0;
             return userId;
+        }
+
+        private async Task CreateMessageNotification(int senderId, int recipientId, int conversationId, string messageContent)
+        {
+            try
+            {
+                // Get sender name
+                var sender = await _userService.GetUserById(senderId);
+                var senderName = sender?.Name ?? "Someone";
+
+                // Create preview (truncate long messages)
+                var messagePreview = string.IsNullOrEmpty(messageContent)
+                    ? "Sent an attachment"
+                    : messageContent.Length > 50
+                        ? messageContent.Substring(0, 47) + "..."
+                        : messageContent;
+
+                // Create notification
+                var notification = await _notificationService.CreateMessageNotificationAsync(
+                    recipientId,
+                    senderId,
+                    senderName,
+                    conversationId,
+                    messagePreview
+                );
+
+                // Send real-time notification via SignalR
+                if (notification != null)
+                {
+                    await _hubContext.Clients.Group($"user_{recipientId}").SendAsync("NewNotification", notification);
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log but don't fail the message send
+                Console.WriteLine($"Failed to create notification: {ex.Message}");
+            }
         }
     }
 }

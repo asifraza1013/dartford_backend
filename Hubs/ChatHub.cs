@@ -13,6 +13,9 @@ namespace inflan_api.Hubs
         private readonly IUserService _userService;
         private readonly INotificationService _notificationService;
         private static readonly Dictionary<int, HashSet<string>> _userConnections = new();
+        // Track which users are currently viewing which conversations
+        // Key: conversationId, Value: Set of userIds currently in that conversation
+        private static readonly Dictionary<int, HashSet<int>> _conversationViewers = new();
         private static readonly object _lock = new();
 
         public ChatHub(IChatService chatService, IUserService userService, INotificationService notificationService)
@@ -68,6 +71,22 @@ namespace inflan_api.Hubs
                         {
                             _userConnections.Remove(userId);
                             isLastConnection = true;
+
+                            // Clean up conversation viewers for this user when they fully disconnect
+                            var conversationsToClean = new List<int>();
+                            foreach (var kvp in _conversationViewers)
+                            {
+                                if (kvp.Value.Contains(userId))
+                                {
+                                    kvp.Value.Remove(userId);
+                                    if (kvp.Value.Count == 0)
+                                        conversationsToClean.Add(kvp.Key);
+                                }
+                            }
+                            foreach (var convId in conversationsToClean)
+                            {
+                                _conversationViewers.Remove(convId);
+                            }
                         }
                     }
                 }
@@ -109,6 +128,15 @@ namespace inflan_api.Hubs
             }
 
             await Groups.AddToGroupAsync(Context.ConnectionId, $"conversation_{conversationId}");
+
+            // Track that this user is now viewing this conversation
+            lock (_lock)
+            {
+                if (!_conversationViewers.ContainsKey(conversationId))
+                    _conversationViewers[conversationId] = new HashSet<int>();
+                _conversationViewers[conversationId].Add(userId);
+            }
+
             Console.WriteLine($"User {userId} joined conversation {conversationId}");
 
             // Mark messages as read when joining conversation
@@ -129,8 +157,25 @@ namespace inflan_api.Hubs
         /// </summary>
         public async Task LeaveConversation(int conversationId)
         {
+            var userId = GetUserId();
+
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"conversation_{conversationId}");
-            Console.WriteLine($"Connection {Context.ConnectionId} left conversation {conversationId}");
+
+            // Remove user from conversation viewers
+            if (userId > 0)
+            {
+                lock (_lock)
+                {
+                    if (_conversationViewers.ContainsKey(conversationId))
+                    {
+                        _conversationViewers[conversationId].Remove(userId);
+                        if (_conversationViewers[conversationId].Count == 0)
+                            _conversationViewers.Remove(conversationId);
+                    }
+                }
+            }
+
+            Console.WriteLine($"User {userId} left conversation {conversationId}");
         }
 
         /// <summary>
@@ -163,36 +208,45 @@ namespace inflan_api.Hubs
                 Message = messageDto
             });
 
-            // Create notification for recipient if they're not in the conversation
-            // Check if recipient is currently in this conversation
+            // Check if recipient is currently viewing this conversation
             bool recipientInConversation = false;
             lock (_lock)
             {
-                // We'll always create notification - the frontend will handle display logic
-                // Notifications are useful for when user refreshes or comes back later
+                if (_conversationViewers.ContainsKey(conversationId))
+                {
+                    recipientInConversation = _conversationViewers[conversationId].Contains(messageDto.RecipientId);
+                }
             }
 
-            // Create in-app notification
-            try
+            // Only create notification if recipient is NOT viewing the conversation
+            if (!recipientInConversation)
             {
-                var sender = await _userService.GetUserById(userId);
-                var senderName = sender?.UserType == 2 ? (sender?.BrandName ?? sender?.Name) : sender?.Name;
-                var messagePreview = string.IsNullOrEmpty(content) ? "[Attachment]" : content;
+                try
+                {
+                    var sender = await _userService.GetUserById(userId);
+                    var senderName = sender?.UserType == 2 ? (sender?.BrandName ?? sender?.Name) : sender?.Name;
+                    var messagePreview = string.IsNullOrEmpty(content) ? "[Attachment]" : content;
 
-                var notification = await _notificationService.CreateMessageNotificationAsync(
-                    messageDto.RecipientId,
-                    userId,
-                    senderName ?? "Unknown",
-                    conversationId,
-                    messagePreview
-                );
+                    var notification = await _notificationService.CreateMessageNotificationAsync(
+                        messageDto.RecipientId,
+                        userId,
+                        senderName ?? "Unknown",
+                        conversationId,
+                        messagePreview
+                    );
 
-                // Send real-time notification to recipient
-                await Clients.Group($"user_{messageDto.RecipientId}").SendAsync("NewNotification", notification);
+                    // Send real-time notification to recipient
+                    await Clients.Group($"user_{messageDto.RecipientId}").SendAsync("NewNotification", notification);
+                    Console.WriteLine($"Notification sent to user {messageDto.RecipientId} - they are not viewing conversation {conversationId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Failed to create notification: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"Failed to create notification: {ex.Message}");
+                Console.WriteLine($"Skipping notification for user {messageDto.RecipientId} - they are viewing conversation {conversationId}");
             }
 
             Console.WriteLine($"Message sent from {userId} in conversation {conversationId}");
@@ -336,6 +390,33 @@ namespace inflan_api.Hubs
             if (userIdClaim == null || !int.TryParse(userIdClaim.Value, out int userId))
                 return 0;
             return userId;
+        }
+
+        /// <summary>
+        /// Check if a user is currently viewing a specific conversation
+        /// This is used by the REST API to determine if notifications should be sent
+        /// </summary>
+        public static bool IsUserViewingConversation(int userId, int conversationId)
+        {
+            lock (_lock)
+            {
+                if (_conversationViewers.ContainsKey(conversationId))
+                {
+                    return _conversationViewers[conversationId].Contains(userId);
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Check if a user is connected to SignalR
+        /// </summary>
+        public static bool IsUserConnected(int userId)
+        {
+            lock (_lock)
+            {
+                return _userConnections.ContainsKey(userId) && _userConnections[userId].Count > 0;
+            }
         }
     }
 }

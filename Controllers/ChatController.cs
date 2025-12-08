@@ -279,9 +279,16 @@ namespace inflan_api.Controllers
         {
             try
             {
+                // Check if recipient is currently viewing this conversation
+                if (ChatHub.IsUserViewingConversation(recipientId, conversationId))
+                {
+                    Console.WriteLine($"Skipping notification for user {recipientId} - they are viewing conversation {conversationId}");
+                    return;
+                }
+
                 // Get sender name
                 var sender = await _userService.GetUserById(senderId);
-                var senderName = sender?.Name ?? "Someone";
+                var senderName = sender?.UserType == 2 ? (sender?.BrandName ?? sender?.Name) : sender?.Name;
 
                 // Create preview (truncate long messages)
                 var messagePreview = string.IsNullOrEmpty(messageContent)
@@ -294,7 +301,7 @@ namespace inflan_api.Controllers
                 var notification = await _notificationService.CreateMessageNotificationAsync(
                     recipientId,
                     senderId,
-                    senderName,
+                    senderName ?? "Someone",
                     conversationId,
                     messagePreview
                 );
@@ -303,6 +310,7 @@ namespace inflan_api.Controllers
                 if (notification != null)
                 {
                     await _hubContext.Clients.Group($"user_{recipientId}").SendAsync("NewNotification", notification);
+                    Console.WriteLine($"Notification sent to user {recipientId} - they are not viewing conversation {conversationId}");
                 }
             }
             catch (Exception ex)

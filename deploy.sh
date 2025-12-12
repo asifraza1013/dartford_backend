@@ -12,7 +12,7 @@ if [ -z "$KEY_PATH" ]; then
     exit 1
 fi
 
-ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ec2-user@13.40.44.150 << 'EOF'
+ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ec2-user@18.171.165.48 << 'EOF'
 #!/bin/bash
 
 echo "📦 Deploying latest changes..."

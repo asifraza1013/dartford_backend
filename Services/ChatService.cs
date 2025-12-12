@@ -12,8 +12,10 @@ namespace inflan_api.Services
         private readonly IWebHostEnvironment _environment;
 
         private static readonly string[] AllowedImageExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".webp" };
+        private static readonly string[] AllowedVideoExtensions = { ".mp4", ".mov", ".avi", ".webm", ".mkv", ".m4v", ".wmv" };
         private static readonly string[] AllowedFileExtensions = { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt", ".zip" };
-        private const long MaxFileSize = 10 * 1024 * 1024; // 10MB
+        private const long MaxFileSize = 10 * 1024 * 1024; // 10MB for images and documents
+        private const long MaxVideoSize = 20 * 1024 * 1024; // 20MB for videos
 
         public ChatService(
             IChatRepository chatRepository,
@@ -245,7 +247,13 @@ namespace inflan_api.Services
 
             // Determine message type based on file
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            int messageType = AllowedImageExtensions.Contains(extension) ? ChatMessageType.Image : ChatMessageType.File;
+            int messageType;
+            if (AllowedImageExtensions.Contains(extension))
+                messageType = ChatMessageType.Image;
+            else if (AllowedVideoExtensions.Contains(extension))
+                messageType = ChatMessageType.Video;
+            else
+                messageType = ChatMessageType.File;
 
             // Determine recipient
             int recipientId = conversation.BrandId == senderId ? conversation.InfluencerId : conversation.BrandId;
@@ -371,15 +379,20 @@ namespace inflan_api.Services
             if (file == null || file.Length == 0)
                 return null;
 
-            // Check file size
-            if (file.Length > MaxFileSize)
-                return null;
-
-            // Check file extension
+            // Check file extension first to determine allowed size
             var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
-            var allAllowedExtensions = AllowedImageExtensions.Concat(AllowedFileExtensions).ToArray();
+            var allAllowedExtensions = AllowedImageExtensions
+                .Concat(AllowedVideoExtensions)
+                .Concat(AllowedFileExtensions)
+                .ToArray();
 
             if (!allAllowedExtensions.Contains(extension))
+                return null;
+
+            // Check file size - videos can be up to 20MB, others up to 10MB
+            var isVideo = AllowedVideoExtensions.Contains(extension);
+            var maxAllowedSize = isVideo ? MaxVideoSize : MaxFileSize;
+            if (file.Length > maxAllowedSize)
                 return null;
 
             // Create upload directory

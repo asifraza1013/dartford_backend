@@ -20,7 +20,7 @@ namespace inflan_api.Models
         // Message content - can be null if it's a file-only message
         public string? Content { get; set; }
 
-        // Message type: 1 = Text, 2 = Image, 3 = File
+        // Message type: 1 = Text, 2 = Image, 3 = File, 4 = Video
         public int MessageType { get; set; } = 1;
 
         // For file/image attachments
@@ -49,5 +49,6 @@ namespace inflan_api.Models
         public const int Text = 1;
         public const int Image = 2;
         public const int File = 3;
+        public const int Video = 4;
     }
 }

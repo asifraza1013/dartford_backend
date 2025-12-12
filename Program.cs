@@ -12,6 +12,7 @@ using Microsoft.OpenApi.Models;
 using Polly;
 using Polly.Extensions.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Http.Features;
 
 namespace inflan_api
 {
@@ -34,6 +35,18 @@ namespace inflan_api
             // Configure Follower Sync settings
             builder.Services.Configure<FollowerSyncConfig>(
                 builder.Configuration.GetSection(FollowerSyncConfig.SectionName));
+
+            // Configure file upload limits (25MB to allow for 20MB videos with overhead)
+            builder.Services.Configure<FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 25 * 1024 * 1024; // 25MB
+            });
+
+            // Configure Kestrel limits for larger uploads
+            builder.WebHost.ConfigureKestrel(serverOptions =>
+            {
+                serverOptions.Limits.MaxRequestBodySize = 25 * 1024 * 1024; // 25MB
+            });
 
             builder.Services.AddControllers()
                 .ConfigureApiBehaviorOptions(options =>

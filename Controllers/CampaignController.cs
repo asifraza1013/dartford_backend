@@ -70,7 +70,14 @@ namespace inflan_api.Controllers
                 Amount = campaign.Amount,
                 CreatedAt = campaign.CreatedAt,
                 InfluencerAcceptedAt = campaign.InfluencerAcceptedAt,
-                PaymentCompletedAt = campaign.PaymentCompletedAt
+                PaymentCompletedAt = campaign.PaymentCompletedAt,
+                // Payment module fields
+                PaymentType = campaign.PaymentType,
+                IsRecurringEnabled = campaign.IsRecurringEnabled,
+                TotalAmountInPence = campaign.TotalAmountInPence,
+                PaidAmountInPence = campaign.PaidAmountInPence,
+                ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
+                NumberOfMonths = plan?.NumberOfMonths ?? 3
             };
 
             return Ok(enrichedCampaign);
@@ -184,7 +191,14 @@ namespace inflan_api.Controllers
                     Amount = campaign.Amount,
                     CreatedAt = campaign.CreatedAt,
                     InfluencerAcceptedAt = campaign.InfluencerAcceptedAt,
-                    PaymentCompletedAt = campaign.PaymentCompletedAt
+                    PaymentCompletedAt = campaign.PaymentCompletedAt,
+                    // Payment module fields
+                    PaymentType = campaign.PaymentType,
+                    IsRecurringEnabled = campaign.IsRecurringEnabled,
+                    TotalAmountInPence = campaign.TotalAmountInPence,
+                    PaidAmountInPence = campaign.PaidAmountInPence,
+                    ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
+                    NumberOfMonths = plan?.NumberOfMonths ?? 3
                 });
             }
 
@@ -255,13 +269,20 @@ namespace inflan_api.Controllers
                     Amount = campaign.Amount,
                     CreatedAt = campaign.CreatedAt,
                     InfluencerAcceptedAt = campaign.InfluencerAcceptedAt,
-                    PaymentCompletedAt = campaign.PaymentCompletedAt
+                    PaymentCompletedAt = campaign.PaymentCompletedAt,
+                    // Payment module fields
+                    PaymentType = campaign.PaymentType,
+                    IsRecurringEnabled = campaign.IsRecurringEnabled,
+                    TotalAmountInPence = campaign.TotalAmountInPence,
+                    PaidAmountInPence = campaign.PaidAmountInPence,
+                    ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
+                    NumberOfMonths = plan?.NumberOfMonths ?? 3
                 });
             }
 
             return Ok(enrichedCampaigns);
         }
-        
+
         [HttpGet("getCompletedPaymentBrandCampaigns/{brandId}")]
         public async Task<IActionResult> GetCompletedPaymentBrandCampaigns(int brandId)
         {

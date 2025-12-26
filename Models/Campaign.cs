@@ -27,8 +27,10 @@ public class Campaign
 
     // Campaign Relations
     public int BrandId { get; set; }
+    public User? Brand { get; set; }
 
     public int InfluencerId { get; set; }
+    public User? Influencer { get; set; }
 
     // Status Management
     public int CampaignStatus { get; set; } = 1; // DRAFT by default
@@ -44,10 +46,22 @@ public class Campaign
 
     public DateTime? SignatureApprovedAt { get; set; }
 
-    // Pricing
+    // Pricing (legacy - kept for backward compatibility)
     public string? Currency { get; set; }
 
     public float Amount { get; set; }
+
+    // Payment Configuration
+    public int PaymentType { get; set; } = 1; // PaymentType: ONE_TIME = 1, MILESTONE = 2
+
+    public bool IsRecurringEnabled { get; set; } = false; // If brand enabled auto-pay (Paystack only)
+
+    // Payment Tracking (amounts in pence for precision)
+    public long TotalAmountInPence { get; set; } = 0;
+
+    public long PaidAmountInPence { get; set; } = 0;
+
+    public long ReleasedToInfluencerInPence { get; set; } = 0;
 
     // Timestamps
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

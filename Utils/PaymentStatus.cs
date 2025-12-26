@@ -6,5 +6,6 @@ public enum PaymentStatus
     PROCESSING = 2,
     COMPLETED = 3,
     FAILED = 4,
-    REFUNDED = 5
+    REFUNDED = 5,
+    PARTIAL = 6  // Some milestones paid, but not all
 }

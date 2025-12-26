@@ -49,12 +49,15 @@ public class CampaignRepository : ICampaignRepository
     public async Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId)
     {
         return await _context.Campaigns
+            .Include(c => c.Brand)
             .Where(c => c.InfluencerId == influencerId)
             .ToListAsync();
     }
     public async Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId)
     {
         return await _context.Campaigns
+            .Include(c => c.Brand)
+            .Include(c => c.Influencer)
             .Where(c => c.BrandId == brandId)
             .ToListAsync();
     }

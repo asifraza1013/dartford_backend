@@ -27,4 +27,12 @@ public class CampaignResponseDto
     public DateTime CreatedAt { get; set; }
     public DateTime? InfluencerAcceptedAt { get; set; }
     public DateTime? PaymentCompletedAt { get; set; }
+
+    // Payment module fields
+    public int PaymentType { get; set; }
+    public bool IsRecurringEnabled { get; set; }
+    public long TotalAmountInPence { get; set; }
+    public long PaidAmountInPence { get; set; }
+    public long ReleasedToInfluencerInPence { get; set; }
+    public int NumberOfMonths { get; set; }
 }

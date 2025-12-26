@@ -12,6 +12,7 @@ namespace inflan_api.Interfaces
         Task<bool> DeleteUser(int id);
         Task<User?> GetByEmailAsync(string email);
         Task<User?> ValidateUserAsync(string email, string password);
+        Task<bool> VerifyPasswordAsync(int userId, string password);
         Task<string> GenerateUniqueUsernameFromNameAsync(string name);
         Task<string?> SaveOrUpdateProfilePictureAsync(int userId, IFormFile? file);
 

@@ -1,7 +1,9 @@
 using inflan_api.Interfaces;
 using inflan_api.Models;
+using inflan_api.Services.Payment;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
 
 namespace inflan_api.Controllers
 {
@@ -11,11 +13,22 @@ namespace inflan_api.Controllers
     {
         private readonly IPaymentService _paymentService;
         private readonly ICampaignService _campaignService;
+        private readonly PaystackGateway _paystackGateway;
+        private readonly IWithdrawalRepository _withdrawalRepo;
+        private readonly ILogger<PaymentController> _logger;
 
-        public PaymentController(IPaymentService paymentService, ICampaignService campaignService)
+        public PaymentController(
+            IPaymentService paymentService,
+            ICampaignService campaignService,
+            PaystackGateway paystackGateway,
+            IWithdrawalRepository withdrawalRepo,
+            ILogger<PaymentController> logger)
         {
             _paymentService = paymentService;
             _campaignService = campaignService;
+            _paystackGateway = paystackGateway;
+            _withdrawalRepo = withdrawalRepo;
+            _logger = logger;
         }
 
         [HttpPost("charge")]
@@ -75,5 +88,137 @@ namespace inflan_api.Controllers
             });
         }
 
+        /// <summary>
+        /// Paystack webhook handler for payment and transfer events
+        /// </summary>
+        [HttpPost("webhook/paystack")]
+        public async Task<IActionResult> PaystackWebhook()
+        {
+            try
+            {
+                // Read the raw body
+                using var reader = new StreamReader(Request.Body);
+                var payload = await reader.ReadToEndAsync();
+
+                // Get signature from header
+                var signature = Request.Headers["x-paystack-signature"].FirstOrDefault();
+
+                _logger.LogInformation("Received Paystack webhook. Event payload length: {Length}", payload.Length);
+
+                // Validate signature
+                if (!_paystackGateway.ValidateWebhookSignature(payload, signature))
+                {
+                    _logger.LogWarning("Invalid Paystack webhook signature");
+                    return Unauthorized();
+                }
+
+                // Parse the event
+                var webhookEvent = JsonSerializer.Deserialize<PaystackWebhookEvent>(payload, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (webhookEvent == null)
+                {
+                    _logger.LogWarning("Failed to parse Paystack webhook payload");
+                    return BadRequest();
+                }
+
+                _logger.LogInformation("Paystack webhook event: {Event}", webhookEvent.Event);
+
+                // Handle transfer events
+                if (webhookEvent.Event?.StartsWith("transfer.") == true)
+                {
+                    await HandleTransferWebhookAsync(webhookEvent);
+                }
+                // Handle charge events (for payments)
+                else if (webhookEvent.Event?.StartsWith("charge.") == true)
+                {
+                    // Existing charge handling logic can go here
+                    _logger.LogInformation("Received charge event: {Event}", webhookEvent.Event);
+                }
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error processing Paystack webhook");
+                return StatusCode(500);
+            }
+        }
+
+        private async Task HandleTransferWebhookAsync(PaystackWebhookEvent webhookEvent)
+        {
+            var data = webhookEvent.Data;
+            if (data == null)
+            {
+                _logger.LogWarning("Transfer webhook has no data");
+                return;
+            }
+
+            // Extract transfer code from the event
+            var transferCode = data.TransferCode;
+            if (string.IsNullOrEmpty(transferCode))
+            {
+                _logger.LogWarning("Transfer webhook has no transfer code");
+                return;
+            }
+
+            // Find the withdrawal by transfer code
+            var withdrawal = await _withdrawalRepo.GetByTransferCodeAsync(transferCode);
+            if (withdrawal == null)
+            {
+                _logger.LogWarning("No withdrawal found for transfer code: {TransferCode}", transferCode);
+                return;
+            }
+
+            _logger.LogInformation("Processing transfer webhook for withdrawal {WithdrawalId}, event: {Event}",
+                withdrawal.Id, webhookEvent.Event);
+
+            switch (webhookEvent.Event)
+            {
+                case "transfer.success":
+                    withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+                    withdrawal.CompletedAt = DateTime.UtcNow;
+                    _logger.LogInformation("Withdrawal {WithdrawalId} completed successfully via webhook", withdrawal.Id);
+                    break;
+
+                case "transfer.failed":
+                    withdrawal.Status = (int)WithdrawalStatus.FAILED;
+                    withdrawal.FailureReason = data.Reason ?? "Transfer failed";
+                    _logger.LogWarning("Withdrawal {WithdrawalId} failed via webhook: {Reason}",
+                        withdrawal.Id, withdrawal.FailureReason);
+                    break;
+
+                case "transfer.reversed":
+                    withdrawal.Status = (int)WithdrawalStatus.FAILED;
+                    withdrawal.FailureReason = "Transfer was reversed";
+                    _logger.LogWarning("Withdrawal {WithdrawalId} was reversed", withdrawal.Id);
+                    break;
+
+                default:
+                    _logger.LogInformation("Unhandled transfer event: {Event}", webhookEvent.Event);
+                    return;
+            }
+
+            await _withdrawalRepo.UpdateAsync(withdrawal);
+        }
+    }
+
+    // Paystack webhook event DTO
+    public class PaystackWebhookEvent
+    {
+        public string? Event { get; set; }
+        public PaystackWebhookData? Data { get; set; }
+    }
+
+    public class PaystackWebhookData
+    {
+        public string? TransferCode { get; set; }
+        public string? Reference { get; set; }
+        public string? Status { get; set; }
+        public string? Reason { get; set; }
+        public long Amount { get; set; }
+        public string? Currency { get; set; }
     }
 }

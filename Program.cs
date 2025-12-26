@@ -6,6 +6,7 @@ using System.Text;
 using inflan_api.Interfaces;
 using inflan_api.Repositories;
 using inflan_api.Services;
+using inflan_api.Services.Payment;
 using inflan_api.Models;
 using inflan_api.Hubs;
 using Microsoft.OpenApi.Models;
@@ -49,6 +50,12 @@ namespace inflan_api
             });
 
             builder.Services.AddControllers()
+                .AddJsonOptions(options =>
+                {
+                    // Ensure camelCase from frontend maps to PascalCase in C# models
+                    options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+                    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+                })
                 .ConfigureApiBehaviorOptions(options =>
                 {
                     options.InvalidModelStateResponseFactory = context =>
@@ -90,6 +97,22 @@ namespace inflan_api
             // Register PDF and Email services
             builder.Services.AddTransient<IPdfGenerationService, PdfGenerationService>();
             builder.Services.AddTransient<IEmailService, EmailService>();
+
+            // Register Payment Module services
+            builder.Services.AddMemoryCache();
+            builder.Services.AddTransient<IPaymentMilestoneRepository, PaymentMilestoneRepository>();
+            builder.Services.AddTransient<IPaymentMethodRepository, PaymentMethodRepository>();
+            builder.Services.AddTransient<IInvoiceRepository, InvoiceRepository>();
+            builder.Services.AddTransient<IInfluencerPayoutRepository, InfluencerPayoutRepository>();
+            builder.Services.AddTransient<IWithdrawalRepository, WithdrawalRepository>();
+            builder.Services.AddTransient<IInfluencerBankAccountRepository, InfluencerBankAccountRepository>();
+            builder.Services.AddTransient<IPlatformSettingsService, PlatformSettingsService>();
+            builder.Services.AddTransient<IMilestoneService, MilestoneService>();
+            builder.Services.AddTransient<TrueLayerGateway>();
+            builder.Services.AddTransient<PaystackGateway>();
+            builder.Services.AddTransient<IPaymentGatewayFactory, PaymentGatewayFactory>();
+            builder.Services.AddTransient<IPaymentOrchestrator, PaymentOrchestrator>();
+            builder.Services.AddTransient<IInvoicePdfService, InvoicePdfService>();
 
             // Register Chat services
             builder.Services.AddScoped<IChatRepository, ChatRepository>();

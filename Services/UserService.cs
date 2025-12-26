@@ -290,6 +290,15 @@ namespace inflan_api.Services
                 return null;
             return user;
         }
+
+        public async Task<bool> VerifyPasswordAsync(int userId, string password)
+        {
+            var user = await _userRepository.GetById(userId);
+            if (user == null)
+                return false;
+            return user.Password == password;
+        }
+
         private string CleanName(string name)
         {
             var parts = name.Trim().ToLower().Split(' ', StringSplitOptions.RemoveEmptyEntries);

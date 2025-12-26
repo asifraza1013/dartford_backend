@@ -1,4 +1,5 @@
 using inflan_api.Interfaces;
+using inflan_api.Utils;
 using System.Net;
 using System.Net.Mail;
 
@@ -231,6 +232,7 @@ public class EmailService : IEmailService
             "USD" => "$",
             "EUR" => "€",
             "GBP" => "£",
+            "NGN" => "₦",
             _ => currency
         };
 

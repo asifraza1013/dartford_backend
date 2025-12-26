@@ -327,16 +327,13 @@ namespace inflan_api.Migrations
                 column: "SettingKey",
                 unique: true);
 
-            // Insert default platform settings
-            migrationBuilder.InsertData(
-                table: "PlatformSettings",
-                columns: new[] { "SettingKey", "SettingValue", "Description", "UpdatedAt" },
-                values: new object[] { "BrandPlatformFeePercent", "2.0", "Platform fee percentage charged to brands", DateTime.UtcNow });
-
-            migrationBuilder.InsertData(
-                table: "PlatformSettings",
-                columns: new[] { "SettingKey", "SettingValue", "Description", "UpdatedAt" },
-                values: new object[] { "InfluencerPlatformFeePercent", "2.0", "Platform fee percentage deducted from influencer payouts", DateTime.UtcNow });
+            // Insert default platform settings using raw SQL
+            migrationBuilder.Sql(@"
+                INSERT INTO ""PlatformSettings"" (""SettingKey"", ""SettingValue"", ""Description"", ""CreatedAt"", ""UpdatedAt"")
+                VALUES ('BrandPlatformFeePercent', '2.0', 'Platform fee percentage charged to brands', NOW(), NOW()),
+                       ('InfluencerPlatformFeePercent', '2.0', 'Platform fee percentage deducted from influencer payouts', NOW(), NOW())
+                ON CONFLICT (""SettingKey"") DO NOTHING;
+            ");
         }
 
         /// <inheritdoc />

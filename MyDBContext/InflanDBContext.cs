@@ -1,5 +1,6 @@
 ﻿using inflan_api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace inflan_api.MyDBContext
 {
@@ -7,6 +8,13 @@ namespace inflan_api.MyDBContext
     {
         public InflanDBContext(DbContextOptions<InflanDBContext> options) : base(options)
         {
+        }
+
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            base.OnConfiguring(optionsBuilder);
+            // Suppress the pending model changes warning during migrations
+            optionsBuilder.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         }
         
         public DbSet<User> Users { get; set; }

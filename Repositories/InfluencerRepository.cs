@@ -46,7 +46,9 @@ namespace inflan_api.Repositories
                         Goals = u.Goals,
                         UserType = u.UserType,
                         ProfileImage = u.ProfileImage,
-                        Status = u.Status
+                        Status = u.Status,
+                        Currency = u.Currency,
+                        Location = u.Location
                     }
                 }).ToListAsync();
 
@@ -84,7 +86,9 @@ namespace inflan_api.Repositories
                         Goals = u.Goals,
                         UserType = u.UserType,
                         ProfileImage = u.ProfileImage,
-                        Status = u.Status
+                        Status = u.Status,
+                        Currency = u.Currency,
+                        Location = u.Location
                     }
                 }).FirstOrDefaultAsync();
 
@@ -138,6 +142,45 @@ namespace inflan_api.Repositories
                     (!string.IsNullOrEmpty(tiktok) && i.TikTok == tiktok) ||
                     (!string.IsNullOrEmpty(facebook) && i.Facebook == facebook)
                 );
+        }
+
+        public async Task<IEnumerable<InfluencerUserModel>> GetByLocation(string location)
+        {
+            return await (from i in _context.Influencers
+                join u in _context.Users on i.UserId equals u.Id
+                where u.Location == location
+                select new InfluencerUserModel
+                {
+                    Id = i.Id,
+                    UserId = i.UserId,
+                    YouTube = i.YouTube,
+                    Instagram = i.Instagram,
+                    Facebook = i.Facebook,
+                    TikTok = i.TikTok,
+                    YouTubeFollower = i.YouTubeFollower,
+                    InstagramFollower = i.InstagramFollower,
+                    FacebookFollower = i.FacebookFollower,
+                    TikTokFollower = i.TikTokFollower,
+                    Bio = i.Bio,
+
+                    User = new User
+                    {
+                        Id = u.Id,
+                        Name = u.Name,
+                        UserName = u.UserName,
+                        Email = u.Email,
+                        Password = u.Password,
+                        BrandName = u.BrandName,
+                        BrandCategory = u.BrandCategory,
+                        BrandSector = u.BrandSector,
+                        Goals = u.Goals,
+                        UserType = u.UserType,
+                        ProfileImage = u.ProfileImage,
+                        Status = u.Status,
+                        Currency = u.Currency,
+                        Location = u.Location
+                    }
+                }).ToListAsync();
         }
     }
 }

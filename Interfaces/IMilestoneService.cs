@@ -43,6 +43,44 @@ public interface IMilestoneService
     /// Get all campaigns with milestones for a brand
     /// </summary>
     Task<List<CampaignWithMilestonesDto>> GetBrandCampaignsWithMilestonesAsync(int brandId);
+
+    /// <summary>
+    /// Create a single milestone manually
+    /// </summary>
+    Task<PaymentMilestone> CreateMilestoneAsync(CreateMilestoneDto request);
+
+    /// <summary>
+    /// Update a milestone
+    /// </summary>
+    Task<PaymentMilestone> UpdateMilestoneAsync(int milestoneId, UpdateMilestoneDto request);
+
+    /// <summary>
+    /// Delete a milestone
+    /// </summary>
+    Task DeleteMilestoneAsync(int milestoneId);
+
+    /// <summary>
+    /// Update campaign payment configuration
+    /// </summary>
+    Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled);
+}
+
+public class CreateMilestoneDto
+{
+    public int CampaignId { get; set; }
+    public int MilestoneNumber { get; set; }
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public long AmountInPence { get; set; }
+    public DateTime DueDate { get; set; }
+}
+
+public class UpdateMilestoneDto
+{
+    public string? Title { get; set; }
+    public string? Description { get; set; }
+    public long? AmountInPence { get; set; }
+    public DateTime? DueDate { get; set; }
 }
 
 public class CampaignWithMilestonesDto

@@ -26,5 +26,16 @@ namespace inflan_api.Models
         public string? ProfileImage { get; set; }
         public int Status { get; set; }
 
+        /// <summary>
+        /// Currency preference for the user (NGN or GBP). Derived from Location.
+        /// </summary>
+        public string? Currency { get; set; } = "NGN";
+
+        /// <summary>
+        /// User's location (NG for Nigeria, GB for United Kingdom).
+        /// This determines the currency and payment gateway used.
+        /// </summary>
+        public string? Location { get; set; } = "NG";
+
     }
 }

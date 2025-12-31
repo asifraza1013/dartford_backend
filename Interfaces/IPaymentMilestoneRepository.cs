@@ -12,5 +12,6 @@ public interface IPaymentMilestoneRepository
     Task<PaymentMilestone> CreateAsync(PaymentMilestone milestone);
     Task<List<PaymentMilestone>> CreateBulkAsync(List<PaymentMilestone> milestones);
     Task<PaymentMilestone> UpdateAsync(PaymentMilestone milestone);
+    Task DeleteAsync(int id);
     Task DeleteByCampaignIdAsync(int campaignId);
 }

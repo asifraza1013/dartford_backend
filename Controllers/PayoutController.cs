@@ -21,9 +21,11 @@ public class PayoutController : ControllerBase
     private readonly ICampaignRepository _campaignRepo;
     private readonly IPlatformSettingsService _settingsService;
     private readonly PaystackGateway _paystackGateway;
+    private readonly TrueLayerGateway _trueLayerGateway;
     private readonly IUserService _userService;
     private readonly IInfluencerBankAccountRepository _bankAccountRepo;
     private readonly INotificationService _notificationService;
+    private readonly IUserRepository _userRepo;
     private readonly ILogger<PayoutController> _logger;
 
     public PayoutController(
@@ -33,9 +35,11 @@ public class PayoutController : ControllerBase
         ICampaignRepository campaignRepo,
         IPlatformSettingsService settingsService,
         PaystackGateway paystackGateway,
+        TrueLayerGateway trueLayerGateway,
         IUserService userService,
         IInfluencerBankAccountRepository bankAccountRepo,
         INotificationService notificationService,
+        IUserRepository userRepo,
         ILogger<PayoutController> logger)
     {
         _payoutRepo = payoutRepo;
@@ -44,9 +48,11 @@ public class PayoutController : ControllerBase
         _campaignRepo = campaignRepo;
         _settingsService = settingsService;
         _paystackGateway = paystackGateway;
+        _trueLayerGateway = trueLayerGateway;
         _userService = userService;
         _bankAccountRepo = bankAccountRepo;
         _notificationService = notificationService;
+        _userRepo = userRepo;
         _logger = logger;
     }
 
@@ -311,6 +317,24 @@ public class PayoutController : ControllerBase
     #region Withdrawal Endpoints
 
     /// <summary>
+    /// Get user's currency and gateway based on their location
+    /// </summary>
+    private async Task<(string currency, string gateway)> GetUserCurrencyAndGatewayAsync(int userId)
+    {
+        var user = await _userRepo.GetById(userId);
+        var location = user?.Location?.ToUpperInvariant() ?? "NG";
+
+        _logger.LogInformation("GetUserCurrencyAndGatewayAsync: UserId={UserId}, UserLocation={Location}, ResolvedLocation={ResolvedLocation}",
+            userId, user?.Location, location);
+
+        return location switch
+        {
+            "GB" => ("GBP", "truelayer"),
+            _ => ("NGN", "paystack")
+        };
+    }
+
+    /// <summary>
     /// Get available balance for withdrawal (released - already withdrawn)
     /// </summary>
     [HttpGet("withdraw/available")]
@@ -321,17 +345,20 @@ public class PayoutController : ControllerBase
         var totalWithdrawn = await _withdrawalRepo.GetTotalWithdrawnByInfluencerIdAsync(userId);
         var available = totalReleased - totalWithdrawn;
 
+        // Get user's currency based on location
+        var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
         return Ok(new
         {
             releasedAmountInPence = totalReleased,
             withdrawnAmountInPence = totalWithdrawn,
             availableAmountInPence = available > 0 ? available : 0,
-            currency = CurrencyConstants.PrimaryCurrency
+            currency = userCurrency
         });
     }
 
     /// <summary>
-    /// Request a withdrawal - automatically processed via Paystack
+    /// Request a withdrawal - processed via Paystack (NGN) or TrueLayer (GBP)
     /// </summary>
     [HttpPost("withdraw/request")]
     public async Task<IActionResult> RequestWithdrawal([FromBody] WithdrawalRequestDto request)
@@ -366,6 +393,25 @@ public class PayoutController : ControllerBase
             return BadRequest(new { message = "Insufficient balance for withdrawal" });
         }
 
+        // Get user's currency and gateway based on location
+        var (userCurrency, gateway) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        // Route to appropriate gateway based on user's currency
+        if (gateway == "truelayer")
+        {
+            return await ProcessTrueLayerWithdrawal(userId, request, userCurrency);
+        }
+        else
+        {
+            return await ProcessPaystackWithdrawal(userId, request, userCurrency);
+        }
+    }
+
+    /// <summary>
+    /// Process withdrawal via Paystack (for Nigerian users - NGN)
+    /// </summary>
+    private async Task<IActionResult> ProcessPaystackWithdrawal(int userId, WithdrawalRequestDto request, string currency)
+    {
         string recipientCode;
         string bankName;
         string bankCode;
@@ -385,6 +431,11 @@ public class PayoutController : ControllerBase
             if (savedAccount.InfluencerId != userId)
             {
                 return Forbid();
+            }
+
+            if (string.IsNullOrEmpty(savedAccount.PaystackRecipientCode))
+            {
+                return BadRequest(new { message = "This bank account is not configured for Paystack withdrawals" });
             }
 
             recipientCode = savedAccount.PaystackRecipientCode;
@@ -417,7 +468,7 @@ public class PayoutController : ControllerBase
                 AccountName = request.AccountName!,
                 AccountNumber = request.AccountNumber!,
                 BankCode = request.BankCode!,
-                Currency = CurrencyConstants.PrimaryCurrency
+                Currency = currency
             });
 
             if (!recipientResult.Success)
@@ -441,7 +492,8 @@ public class PayoutController : ControllerBase
         {
             InfluencerId = userId,
             AmountInPence = request.AmountInPence,
-            Currency = CurrencyConstants.PrimaryCurrency,
+            Currency = currency,
+            PaymentGateway = "paystack",
             BankName = bankName,
             BankCode = bankCode,
             AccountNumber = accountNumberLast4, // Only store last 4 digits
@@ -465,7 +517,7 @@ public class PayoutController : ControllerBase
             AmountInPence = request.AmountInPence,
             Reason = $"Inflan withdrawal #{withdrawal.Id}",
             Reference = transferReference,
-            Currency = CurrencyConstants.PrimaryCurrency
+            Currency = currency
         });
 
         if (!transferResult.Success)
@@ -578,13 +630,253 @@ public class PayoutController : ControllerBase
     }
 
     /// <summary>
+    /// Process withdrawal via TrueLayer (for UK users - GBP)
+    /// Uses open-loop payout - bank details are sent directly with payout request
+    /// </summary>
+    private async Task<IActionResult> ProcessTrueLayerWithdrawal(int userId, WithdrawalRequestDto request, string currency)
+    {
+        string bankName;
+        string sortCode;
+        string accountNumber;
+        string accountNumberLast4;
+        string accountName;
+
+        // Check if using saved bank account or one-time details
+        if (request.BankAccountId.HasValue)
+        {
+            // Use saved bank account - we need to retrieve the full account details
+            // Note: For security, we only store last 4 digits in the database
+            // For saved accounts, we need to get the full account number from a secure source
+            // In this implementation, we require users to provide full details for each withdrawal
+            // or use a pre-verified account through TrueLayer's closed-loop system
+
+            var savedAccount = await _bankAccountRepo.GetByIdAsync(request.BankAccountId.Value);
+            if (savedAccount == null)
+            {
+                return BadRequest(new { message = "Bank account not found" });
+            }
+
+            if (savedAccount.InfluencerId != userId)
+            {
+                return Forbid();
+            }
+
+            // For saved accounts, we need the user to provide the full account number again for security
+            // The saved account only stores last 4 digits and sort code
+            if (string.IsNullOrWhiteSpace(request.AccountNumber))
+            {
+                return BadRequest(new { message = "Please provide your full account number to verify the withdrawal" });
+            }
+
+            // Verify the provided account number matches the saved account (last 4 digits)
+            var providedLast4 = request.AccountNumber.Length >= 4
+                ? request.AccountNumber[^4..]
+                : request.AccountNumber;
+
+            if (providedLast4 != savedAccount.AccountNumberLast4)
+            {
+                return BadRequest(new { message = "Account number doesn't match saved bank account" });
+            }
+
+            bankName = savedAccount.BankName;
+            sortCode = savedAccount.BankCode; // For UK accounts, BankCode stores the sort code
+            accountNumber = request.AccountNumber;
+            accountNumberLast4 = savedAccount.AccountNumberLast4;
+            accountName = savedAccount.AccountName;
+        }
+        else
+        {
+            // Validate required bank details for one-time use (UK format)
+            if (string.IsNullOrWhiteSpace(request.SortCode))
+            {
+                return BadRequest(new { message = "Sort code is required for UK bank accounts" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.AccountNumber))
+            {
+                return BadRequest(new { message = "Account number is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.AccountName))
+            {
+                return BadRequest(new { message = "Account name is required" });
+            }
+
+            // Validate UK bank account format
+            var validationResult = await _trueLayerGateway.CreateExternalAccountAsync(new TrueLayerBeneficiaryRequest
+            {
+                AccountName = request.AccountName!,
+                AccountNumber = request.AccountNumber!,
+                SortCode = request.SortCode!
+            });
+
+            if (!validationResult.Success)
+            {
+                return BadRequest(new { message = validationResult.ErrorMessage });
+            }
+
+            bankName = request.BankName ?? "";
+            sortCode = request.SortCode!;
+            accountNumber = request.AccountNumber!;
+            accountNumberLast4 = request.AccountNumber!.Length >= 4
+                ? request.AccountNumber[^4..]
+                : request.AccountNumber;
+            accountName = request.AccountName!;
+        }
+
+        // Create withdrawal record in PROCESSING state
+        var withdrawal = new Withdrawal
+        {
+            InfluencerId = userId,
+            AmountInPence = request.AmountInPence,
+            Currency = currency,
+            PaymentGateway = "truelayer",
+            BankName = bankName,
+            BankCode = sortCode, // Store sort code for UK accounts
+            AccountNumber = accountNumberLast4, // Only store last 4 digits
+            AccountName = accountName,
+            Status = (int)WithdrawalStatus.PROCESSING,
+            CreatedAt = DateTime.UtcNow,
+            ProcessedAt = DateTime.UtcNow
+        };
+
+        await _withdrawalRepo.CreateAsync(withdrawal);
+
+        _logger.LogInformation("Withdrawal request created for influencer {UserId}, amount: {Amount}p, processing via TrueLayer",
+            userId, request.AmountInPence);
+
+        // Initiate open-loop payout - send bank details directly
+        var payoutReference = $"WD{withdrawal.Id}";
+        var payoutResult = await _trueLayerGateway.InitiatePayoutAsync(new TrueLayerPayoutRequest
+        {
+            SortCode = sortCode,
+            AccountNumber = accountNumber,
+            AccountName = accountName,
+            AmountInPence = request.AmountInPence,
+            Reference = payoutReference
+        });
+
+        if (!payoutResult.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Failed to initiate payout";
+            await _withdrawalRepo.UpdateAsync(withdrawal);
+
+            _logger.LogError("Failed to initiate TrueLayer payout for withdrawal {WithdrawalId}: {Error}",
+                withdrawal.Id, payoutResult.ErrorMessage);
+
+            return BadRequest(new { message = "Failed to process withdrawal: " + payoutResult.ErrorMessage });
+        }
+
+        withdrawal.TrueLayerPayoutId = payoutResult.PayoutId;
+
+        // Update status based on payout result
+        if (payoutResult.Status == TrueLayerPayoutStatus.Executed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+            withdrawal.CompletedAt = DateTime.UtcNow;
+            _logger.LogInformation("Withdrawal {WithdrawalId} completed successfully via TrueLayer", withdrawal.Id);
+        }
+        else if (payoutResult.Status == TrueLayerPayoutStatus.Pending || payoutResult.Status == TrueLayerPayoutStatus.Authorized)
+        {
+            // Keep as PROCESSING - webhook will update when complete
+            _logger.LogInformation("Withdrawal {WithdrawalId} is {Status}, waiting for TrueLayer webhook",
+                withdrawal.Id, payoutResult.Status);
+        }
+        else if (payoutResult.Status == TrueLayerPayoutStatus.Failed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Payout failed";
+            _logger.LogWarning("Withdrawal {WithdrawalId} payout status: {Status}", withdrawal.Id, payoutResult.Status);
+        }
+        else
+        {
+            // Unknown status - keep as processing and wait for webhook
+            _logger.LogWarning("Withdrawal {WithdrawalId} has unknown payout status: {Status}", withdrawal.Id, payoutResult.Status);
+        }
+
+        await _withdrawalRepo.UpdateAsync(withdrawal);
+
+        // Send notification to influencer about withdrawal status
+        var formattedAmount = FormatAmount(withdrawal.AmountInPence, withdrawal.Currency);
+        if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Successful",
+                Message = $"Your withdrawal of {formattedAmount} has been sent to your bank account ({bankName} ****{accountNumberLast4})",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+        }
+        else if (withdrawal.Status == (int)WithdrawalStatus.PROCESSING)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Processing",
+                Message = $"Your withdrawal request of {formattedAmount} is being processed. You'll be notified when complete.",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+        }
+        else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Failed",
+                Message = $"Your withdrawal request of {formattedAmount} could not be processed. Reason: {withdrawal.FailureReason ?? "Unknown error"}",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+        }
+
+        var responseMessage = withdrawal.Status switch
+        {
+            (int)WithdrawalStatus.COMPLETED => "Withdrawal processed successfully",
+            (int)WithdrawalStatus.FAILED => $"Withdrawal failed: {withdrawal.FailureReason}",
+            _ => "Withdrawal is being processed. You'll be notified when complete."
+        };
+
+        return Ok(new
+        {
+            message = responseMessage,
+            withdrawal = new
+            {
+                withdrawal.Id,
+                withdrawal.AmountInPence,
+                withdrawal.Currency,
+                status = GetWithdrawalStatusText(withdrawal.Status),
+                withdrawal.CreatedAt,
+                withdrawal.ProcessedAt,
+                withdrawal.CompletedAt
+            }
+        });
+    }
+
+    /// <summary>
     /// Get list of supported banks
     /// </summary>
     [HttpGet("banks")]
     [AllowAnonymous]
     public async Task<IActionResult> GetBanks([FromQuery] string? country = null)
     {
-        var banks = await _paystackGateway.GetBanksAsync(country ?? CurrencyConstants.PrimaryCountry);
+        var countryCode = country?.ToUpperInvariant() ?? CurrencyConstants.PrimaryCountry;
+
+        // For UK, return static list from TrueLayer (TrueLayer doesn't have bank list API)
+        if (countryCode == "GB")
+        {
+            var ukBanks = _trueLayerGateway.GetUKBanks();
+            return Ok(ukBanks);
+        }
+
+        // For Nigeria and others, use Paystack
+        var banks = await _paystackGateway.GetBanksAsync(countryCode);
         return Ok(banks);
     }
 
@@ -756,22 +1048,12 @@ public class PayoutController : ControllerBase
     }
 
     /// <summary>
-    /// Add a new bank account - creates recipient on Paystack
+    /// Add a new bank account - creates recipient on Paystack (NGN) or TrueLayer (GBP)
     /// </summary>
     [HttpPost("bank-accounts")]
     public async Task<IActionResult> AddBankAccount([FromBody] AddBankAccountDto request)
     {
         var userId = GetCurrentUserId();
-
-        // Validate inputs
-        if (string.IsNullOrWhiteSpace(request.BankCode))
-            return BadRequest(new { message = "Bank code is required" });
-
-        if (string.IsNullOrWhiteSpace(request.AccountNumber))
-            return BadRequest(new { message = "Account number is required" });
-
-        if (string.IsNullOrWhiteSpace(request.AccountName))
-            return BadRequest(new { message = "Account name is required" });
 
         // Verify password
         if (string.IsNullOrWhiteSpace(request.Password))
@@ -781,20 +1063,70 @@ public class PayoutController : ControllerBase
         if (!isPasswordValid)
             return BadRequest(new { message = "Invalid password" });
 
-        // Create transfer recipient on Paystack
-        var recipientResult = await _paystackGateway.CreateTransferRecipientAsync(new TransferRecipientRequest
-        {
-            AccountName = request.AccountName,
-            AccountNumber = request.AccountNumber,
-            BankCode = request.BankCode,
-            Currency = CurrencyConstants.PrimaryCurrency
-        });
+        if (string.IsNullOrWhiteSpace(request.AccountNumber))
+            return BadRequest(new { message = "Account number is required" });
 
-        if (!recipientResult.Success)
+        if (string.IsNullOrWhiteSpace(request.AccountName))
+            return BadRequest(new { message = "Account name is required" });
+
+        // Get user's currency and gateway based on location
+        var (userCurrency, gateway) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        _logger.LogInformation("AddBankAccount: UserId={UserId}, Gateway={Gateway}, Currency={Currency}, SortCode={SortCode}, BankCode={BankCode}",
+            userId, gateway, userCurrency, request.SortCode, request.BankCode);
+
+        string? paystackRecipientCode = null;
+        string? trueLayerBeneficiaryId = null;
+        string bankCode;
+
+        if (gateway == "truelayer")
         {
-            _logger.LogError("Failed to create Paystack recipient for user {UserId}: {Error}",
-                userId, recipientResult.ErrorMessage);
-            return BadRequest(new { message = "Failed to verify bank account: " + recipientResult.ErrorMessage });
+            // For UK users - validate sort code
+            if (string.IsNullOrWhiteSpace(request.SortCode))
+                return BadRequest(new { message = "Sort code is required for UK bank accounts" });
+
+            // Create external account on TrueLayer
+            var beneficiaryResult = await _trueLayerGateway.CreateExternalAccountAsync(new TrueLayerBeneficiaryRequest
+            {
+                AccountName = request.AccountName,
+                AccountNumber = request.AccountNumber,
+                SortCode = request.SortCode
+            });
+
+            if (!beneficiaryResult.Success)
+            {
+                _logger.LogError("Failed to create TrueLayer beneficiary for user {UserId}: {Error}",
+                    userId, beneficiaryResult.ErrorMessage);
+                return BadRequest(new { message = "Failed to verify bank account: " + beneficiaryResult.ErrorMessage });
+            }
+
+            trueLayerBeneficiaryId = beneficiaryResult.BeneficiaryId;
+            bankCode = request.SortCode; // Store sort code as bank code for UK accounts
+        }
+        else
+        {
+            // For Nigerian users - validate bank code
+            if (string.IsNullOrWhiteSpace(request.BankCode))
+                return BadRequest(new { message = "Bank code is required" });
+
+            // Create transfer recipient on Paystack
+            var recipientResult = await _paystackGateway.CreateTransferRecipientAsync(new TransferRecipientRequest
+            {
+                AccountName = request.AccountName,
+                AccountNumber = request.AccountNumber,
+                BankCode = request.BankCode,
+                Currency = userCurrency
+            });
+
+            if (!recipientResult.Success)
+            {
+                _logger.LogError("Failed to create Paystack recipient for user {UserId}: {Error}",
+                    userId, recipientResult.ErrorMessage);
+                return BadRequest(new { message = "Failed to verify bank account: " + recipientResult.ErrorMessage });
+            }
+
+            paystackRecipientCode = recipientResult.RecipientCode;
+            bankCode = request.BankCode;
         }
 
         // Check if this is the first account (make it default)
@@ -806,20 +1138,23 @@ public class PayoutController : ControllerBase
         {
             InfluencerId = userId,
             BankName = request.BankName ?? "",
-            BankCode = request.BankCode,
+            BankCode = bankCode,
             AccountNumberLast4 = request.AccountNumber.Length >= 4
                 ? request.AccountNumber[^4..]
                 : request.AccountNumber,
             AccountName = request.AccountName,
-            PaystackRecipientCode = recipientResult.RecipientCode!,
+            Currency = userCurrency,
+            PaymentGateway = gateway,
+            PaystackRecipientCode = paystackRecipientCode,
+            TrueLayerBeneficiaryId = trueLayerBeneficiaryId,
             IsDefault = isFirstAccount,
             CreatedAt = DateTime.UtcNow
         };
 
         await _bankAccountRepo.CreateAsync(bankAccount);
 
-        _logger.LogInformation("Bank account added for user {UserId}, recipient code: {RecipientCode}",
-            userId, recipientResult.RecipientCode);
+        _logger.LogInformation("Bank account added for user {UserId} via {Gateway}",
+            userId, gateway);
 
         return Ok(new
         {
@@ -885,7 +1220,8 @@ public class PayoutController : ControllerBase
 public class AddBankAccountDto
 {
     public string? BankName { get; set; }
-    public string BankCode { get; set; } = "";
+    public string? BankCode { get; set; } // Nigerian bank code
+    public string? SortCode { get; set; } // UK sort code (for TrueLayer)
     public string AccountNumber { get; set; } = "";
     public string AccountName { get; set; } = "";
     public string? Password { get; set; }
@@ -897,7 +1233,8 @@ public class WithdrawalRequestDto
     public int? BankAccountId { get; set; } // Use saved bank account
     // OR provide bank details for one-time use
     public string? BankName { get; set; }
-    public string? BankCode { get; set; }
+    public string? BankCode { get; set; } // Nigerian bank code
+    public string? SortCode { get; set; } // UK sort code (for TrueLayer)
     public string? AccountNumber { get; set; }
     public string? AccountName { get; set; }
     public string? Password { get; set; }

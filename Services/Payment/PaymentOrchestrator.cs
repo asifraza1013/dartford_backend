@@ -110,8 +110,22 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             // Generate transaction reference
             var transactionRef = $"INF-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
 
-            // Use primary currency from constants
-            var currency = CurrencyConstants.PrimaryCurrency;
+            // Use brand's currency, defaulting to NGN if not set
+            var currency = brand.Currency ?? CurrencyConstants.PrimaryCurrency;
+
+            // Determine payment gateway based on currency
+            // GBP uses TrueLayer, NGN uses Paystack
+            var gatewayName = currency.ToUpper() switch
+            {
+                "GBP" => "truelayer",
+                "NGN" => "paystack",
+                _ => request.Gateway // Use requested gateway if currency doesn't match
+            };
+
+            // Override the requested gateway with the currency-determined one
+            request.Gateway = gatewayName;
+
+            _logger.LogInformation("Payment routing: Currency={Currency}, Gateway={Gateway}", currency, gatewayName);
 
             // Create transaction record
             var transaction = new Transaction
@@ -234,6 +248,13 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             }
 
             _logger.LogInformation("Found transaction ID: {Id}, Current Status: {Status}", transaction.Id, transaction.TransactionStatus);
+
+            // Check if already completed (idempotency check to prevent duplicate processing)
+            if (transaction.TransactionStatus == (int)PaymentStatus.COMPLETED)
+            {
+                _logger.LogInformation("Transaction {Ref} already completed, skipping duplicate webhook", result.TransactionReference);
+                return true; // Return success but don't process again
+            }
 
             // Update transaction status
             transaction.TransactionStatus = result.Status switch

@@ -7,10 +7,12 @@ namespace inflan_api.Services
     public class InfluencerService : IInfluencerService
     {
         private readonly IInfluencerRepository _influencerRepository;
+        private readonly IPlanRepository _planRepository;
 
-        public InfluencerService(IInfluencerRepository influencerRepository)
+        public InfluencerService(IInfluencerRepository influencerRepository, IPlanRepository planRepository)
         {
             _influencerRepository = influencerRepository;
+            _planRepository = planRepository;
         }
         
         public int ParseFollowerString(string? value)
@@ -67,9 +69,19 @@ namespace inflan_api.Services
         }
 
 
-        public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null)
+        public async Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null, string? location = null)
         {
-            var allInfluencers = await _influencerRepository.GetAll();
+            // If location filter is provided, get influencers from that location directly
+            IEnumerable<InfluencerUserModel> allInfluencers;
+            if (!string.IsNullOrWhiteSpace(location))
+            {
+                allInfluencers = await _influencerRepository.GetByLocation(location);
+            }
+            else
+            {
+                allInfluencers = await _influencerRepository.GetAll();
+            }
+
             var filteredInfluencers = allInfluencers.AsEnumerable();
 
             // Parse follower range if provided

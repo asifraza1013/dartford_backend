@@ -14,6 +14,12 @@ public class PaymentMilestone
     [Required]
     public int MilestoneNumber { get; set; }
 
+    [StringLength(200)]
+    public string? Title { get; set; }
+
+    [StringLength(1000)]
+    public string? Description { get; set; }
+
     [Required]
     public long AmountInPence { get; set; }
 

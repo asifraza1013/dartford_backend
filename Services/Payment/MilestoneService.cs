@@ -190,4 +190,110 @@ public class MilestoneService : IMilestoneService
 
         return result;
     }
+
+    public async Task<PaymentMilestone> CreateMilestoneAsync(CreateMilestoneDto request)
+    {
+        var campaign = await _campaignRepo.GetById(request.CampaignId);
+        if (campaign == null)
+            throw new ArgumentException($"Campaign {request.CampaignId} not found");
+
+        // Get platform fee percentage
+        var brandFeePercent = await _settingsService.GetBrandPlatformFeePercentAsync();
+        var platformFee = (long)(request.AmountInPence * brandFeePercent / 100);
+
+        // Ensure DueDate is UTC for PostgreSQL
+        var dueDate = request.DueDate.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(request.DueDate, DateTimeKind.Utc)
+            : request.DueDate.ToUniversalTime();
+
+        var milestone = new PaymentMilestone
+        {
+            CampaignId = request.CampaignId,
+            MilestoneNumber = request.MilestoneNumber,
+            Title = request.Title,
+            Description = request.Description,
+            AmountInPence = request.AmountInPence,
+            PlatformFeeInPence = platformFee,
+            DueDate = dueDate,
+            Status = (int)MilestoneStatus.PENDING,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var created = await _milestoneRepo.CreateAsync(milestone);
+
+        _logger.LogInformation("Created milestone {MilestoneNumber} for campaign {CampaignId}",
+            request.MilestoneNumber, request.CampaignId);
+
+        return created;
+    }
+
+    public async Task<PaymentMilestone> UpdateMilestoneAsync(int milestoneId, UpdateMilestoneDto request)
+    {
+        var milestone = await _milestoneRepo.GetByIdAsync(milestoneId);
+        if (milestone == null)
+            throw new ArgumentException($"Milestone {milestoneId} not found");
+
+        if (milestone.Status == (int)MilestoneStatus.PAID)
+            throw new InvalidOperationException("Cannot update a paid milestone");
+
+        if (request.Title != null)
+            milestone.Title = request.Title;
+
+        if (request.Description != null)
+            milestone.Description = request.Description;
+
+        if (request.AmountInPence.HasValue)
+        {
+            milestone.AmountInPence = request.AmountInPence.Value;
+            // Recalculate platform fee
+            var brandFeePercent = await _settingsService.GetBrandPlatformFeePercentAsync();
+            milestone.PlatformFeeInPence = (long)(request.AmountInPence.Value * brandFeePercent / 100);
+        }
+
+        if (request.DueDate.HasValue)
+        {
+            // Ensure DueDate is UTC for PostgreSQL
+            var dueDate = request.DueDate.Value.Kind == DateTimeKind.Unspecified
+                ? DateTime.SpecifyKind(request.DueDate.Value, DateTimeKind.Utc)
+                : request.DueDate.Value.ToUniversalTime();
+            milestone.DueDate = dueDate;
+        }
+
+        milestone.UpdatedAt = DateTime.UtcNow;
+
+        var updated = await _milestoneRepo.UpdateAsync(milestone);
+
+        _logger.LogInformation("Updated milestone {MilestoneId}", milestoneId);
+
+        return updated;
+    }
+
+    public async Task DeleteMilestoneAsync(int milestoneId)
+    {
+        var milestone = await _milestoneRepo.GetByIdAsync(milestoneId);
+        if (milestone == null)
+            throw new ArgumentException($"Milestone {milestoneId} not found");
+
+        if (milestone.Status == (int)MilestoneStatus.PAID)
+            throw new InvalidOperationException("Cannot delete a paid milestone");
+
+        await _milestoneRepo.DeleteAsync(milestoneId);
+
+        _logger.LogInformation("Deleted milestone {MilestoneId}", milestoneId);
+    }
+
+    public async Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled)
+    {
+        var campaign = await _campaignRepo.GetById(campaignId);
+        if (campaign == null)
+            throw new ArgumentException($"Campaign {campaignId} not found");
+
+        campaign.PaymentType = paymentType;
+        campaign.IsRecurringEnabled = isAutoPayEnabled;
+
+        await _campaignRepo.Update(campaign);
+
+        _logger.LogInformation("Updated payment config for campaign {CampaignId}: PaymentType={PaymentType}, AutoPay={AutoPay}",
+            campaignId, paymentType, isAutoPayEnabled);
+    }
 }

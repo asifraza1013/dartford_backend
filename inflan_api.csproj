@@ -18,6 +18,7 @@
     <PackageReference Include="QuestPDF" Version="2025.7.4" />
     <PackageReference Include="Stripe.net" Version="48.3.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="TrueLayer.Signing" Version="0.2.5" />
   </ItemGroup>
 
   <ItemGroup>

@@ -90,6 +90,16 @@ public class PaymentMilestoneRepository : IPaymentMilestoneRepository
         return milestone;
     }
 
+    public async Task DeleteAsync(int id)
+    {
+        var milestone = await _context.PaymentMilestones.FindAsync(id);
+        if (milestone != null)
+        {
+            _context.PaymentMilestones.Remove(milestone);
+            await _context.SaveChangesAsync();
+        }
+    }
+
     public async Task DeleteByCampaignIdAsync(int campaignId)
     {
         var milestones = await _context.PaymentMilestones

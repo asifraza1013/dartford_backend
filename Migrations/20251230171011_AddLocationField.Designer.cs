@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using inflan_api.MyDBContext;
@@ -12,9 +13,11 @@ using inflan_api.MyDBContext;
 namespace inflan_api.Migrations
 {
     [DbContext(typeof(InflanDBContext))]
-    partial class InflanDBContextModelSnapshot : ModelSnapshot
+    [Migration("20251230171011_AddLocationField")]
+    partial class AddLocationField
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -291,10 +294,6 @@ namespace inflan_api.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("Currency")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("InfluencerId")
                         .HasColumnType("integer");
 
@@ -304,14 +303,8 @@ namespace inflan_api.Migrations
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
-                    b.Property<string>("PaymentGateway")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("PaystackRecipientCode")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TrueLayerBeneficiaryId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime?>("UpdatedAt")
@@ -913,10 +906,6 @@ namespace inflan_api.Migrations
                     b.Property<int>("InfluencerId")
                         .HasColumnType("integer");
 
-                    b.Property<string>("PaymentGateway")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<string>("PaystackRecipientCode")
                         .HasColumnType("text");
 
@@ -928,12 +917,6 @@ namespace inflan_api.Migrations
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
-
-                    b.Property<string>("TrueLayerBeneficiaryId")
-                        .HasColumnType("text");
-
-                    b.Property<string>("TrueLayerPayoutId")
-                        .HasColumnType("text");
 
                     b.HasKey("Id");
 

@@ -5,7 +5,7 @@ namespace inflan_api.Interfaces
 {
     public interface IInfluencerService
     {
-        Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null);
+        Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null, string? location = null);
         Task<InfluencerUserModel?> GetInfluencerById(int id);
         Task<Influencer> CreateInfluencer(Influencer influencer);
         Task<bool> UpdateInfluencer(int userId, Influencer influencer);

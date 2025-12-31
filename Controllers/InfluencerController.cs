@@ -30,12 +30,31 @@ namespace inflan_api.Controllers
         }
 
         [HttpGet("getAllInfluencers")]
+        [Authorize]
         public async Task<IActionResult> GetAllInfluencers(
             [FromQuery] string? searchQuery = null,
             [FromQuery] string? followers = null,
             [FromQuery] string? channels = null)
         {
-            var influencers = await _influencerService.GetAllInfluencers(searchQuery, followers, channels);
+            // Get current user's location for filtering
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            string? location = null;
+            string? currency = null;
+
+            if (userIdClaim != null)
+            {
+                int userId = int.Parse(userIdClaim.Value);
+                var user = await _userService.GetUserById(userId);
+
+                // Only filter by location if user is a brand (UserType == 2)
+                if (user != null && user.UserType == 2)
+                {
+                    location = user.Location ?? "NG"; // Default to NG if not set
+                    currency = user.Currency ?? "NGN"; // Also track currency for reference
+                }
+            }
+
+            var influencers = await _influencerService.GetAllInfluencers(searchQuery, followers, channels, location);
             return Ok(new
             {
                 count = influencers.Count(),
@@ -43,7 +62,9 @@ namespace inflan_api.Controllers
                 {
                     searchQuery,
                     followers,
-                    channels
+                    channels,
+                    location,
+                    currency
                 },
                 data = influencers
             });

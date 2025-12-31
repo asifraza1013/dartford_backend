@@ -11,5 +11,6 @@ namespace inflan_api.Interfaces
         Task Delete(int id);
         Task<Influencer?> GetByUserId(int userId);
         Task<Influencer?> FindBySocialAccount(string? instagram, string? youtube, string? tiktok, string? facebook);
+        Task<IEnumerable<InfluencerUserModel>> GetByLocation(string location);
     }
 }

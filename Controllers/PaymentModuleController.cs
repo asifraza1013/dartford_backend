@@ -252,7 +252,7 @@ public class PaymentModuleController : ControllerBase
     }
 
     /// <summary>
-    /// Get milestones for a campaign (creates them if they don't exist)
+    /// Get milestones for a campaign
     /// </summary>
     [HttpGet("milestones/campaign/{campaignId}")]
     [Authorize]
@@ -260,25 +260,13 @@ public class PaymentModuleController : ControllerBase
     {
         var milestones = await _milestoneService.GetCampaignMilestonesAsync(campaignId);
 
-        // If no milestones exist, create them
-        if (milestones == null || milestones.Count == 0)
-        {
-            try
-            {
-                milestones = await _milestoneService.CreateMilestonesForCampaignAsync(campaignId);
-                _logger.LogInformation("Auto-created milestones for campaign {CampaignId}", campaignId);
-            }
-            catch (ArgumentException ex)
-            {
-                return NotFound(new { message = ex.Message });
-            }
-        }
-
         return Ok(milestones.Select(m => new
         {
             m.Id,
             m.CampaignId,
             m.MilestoneNumber,
+            m.Title,
+            m.Description,
             m.AmountInPence,
             m.PlatformFeeInPence,
             m.DueDate,
@@ -286,6 +274,139 @@ public class PaymentModuleController : ControllerBase
             m.PaidAt,
             m.TransactionId
         }));
+    }
+
+    /// <summary>
+    /// Create a new milestone for a campaign
+    /// </summary>
+    [HttpPost("milestones")]
+    [Authorize]
+    public async Task<IActionResult> CreateMilestone([FromBody] CreateMilestoneDto request)
+    {
+        try
+        {
+            var milestone = await _milestoneService.CreateMilestoneAsync(request);
+            return Ok(new
+            {
+                milestone.Id,
+                milestone.CampaignId,
+                milestone.MilestoneNumber,
+                milestone.Title,
+                milestone.Description,
+                milestone.AmountInPence,
+                milestone.PlatformFeeInPence,
+                milestone.DueDate,
+                milestone.Status
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update a milestone
+    /// </summary>
+    [HttpPut("milestones/{id}")]
+    [Authorize]
+    public async Task<IActionResult> UpdateMilestone(int id, [FromBody] UpdateMilestoneDto request)
+    {
+        try
+        {
+            var milestone = await _milestoneService.UpdateMilestoneAsync(id, request);
+            return Ok(new
+            {
+                milestone.Id,
+                milestone.CampaignId,
+                milestone.MilestoneNumber,
+                milestone.Title,
+                milestone.Description,
+                milestone.AmountInPence,
+                milestone.PlatformFeeInPence,
+                milestone.DueDate,
+                milestone.Status
+            });
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Delete a milestone
+    /// </summary>
+    [HttpDelete("milestones/{id}")]
+    [Authorize]
+    public async Task<IActionResult> DeleteMilestone(int id)
+    {
+        try
+        {
+            await _milestoneService.DeleteMilestoneAsync(id);
+            return Ok(new { message = "Milestone deleted successfully" });
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update campaign payment configuration (payment type and auto-pay)
+    /// </summary>
+    [HttpPut("campaign/{campaignId}/payment-config")]
+    [Authorize]
+    public async Task<IActionResult> UpdatePaymentConfig(int campaignId, [FromBody] UpdatePaymentConfigDto request)
+    {
+        try
+        {
+            await _milestoneService.UpdateCampaignPaymentConfigAsync(campaignId, request.PaymentType, request.IsAutoPayEnabled);
+            return Ok(new { message = "Payment configuration updated" });
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Pay full campaign amount (one-time payment)
+    /// </summary>
+    [HttpPost("pay-full")]
+    [Authorize]
+    public async Task<IActionResult> PayFullAmount([FromBody] PayFullAmountDto request)
+    {
+        var userId = GetCurrentUserId();
+
+        var initiateRequest = new InitiatePaymentRequest
+        {
+            CampaignId = request.CampaignId,
+            UserId = userId,
+            Gateway = request.Gateway,
+            AmountInPence = request.AmountInPence,
+            SavePaymentMethod = request.SavePaymentMethod,
+            SuccessUrl = request.SuccessUrl,
+            FailureUrl = request.FailureUrl
+        };
+
+        var result = await _paymentOrchestrator.InitiatePaymentAsync(initiateRequest);
+
+        if (result.Success)
+        {
+            return Ok(new
+            {
+                success = true,
+                redirectUrl = result.RedirectUrl,
+                transactionReference = result.TransactionReference
+            });
+        }
+
+        return BadRequest(new { success = false, message = result.ErrorMessage });
     }
 
     /// <summary>
@@ -400,4 +521,20 @@ public class ChargeSavedCardDto
 {
     public int MilestoneId { get; set; }
     public int PaymentMethodId { get; set; }
+}
+
+public class UpdatePaymentConfigDto
+{
+    public int PaymentType { get; set; } // 1 = ONE_TIME, 2 = MILESTONE
+    public bool IsAutoPayEnabled { get; set; }
+}
+
+public class PayFullAmountDto
+{
+    public int CampaignId { get; set; }
+    public string Gateway { get; set; } = "paystack";
+    public long AmountInPence { get; set; }
+    public bool SavePaymentMethod { get; set; } = false;
+    public string SuccessUrl { get; set; } = string.Empty;
+    public string FailureUrl { get; set; } = string.Empty;
 }

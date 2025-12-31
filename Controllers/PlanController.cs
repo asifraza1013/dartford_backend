@@ -13,10 +13,25 @@ namespace inflan_api.Controllers
     public class PlanController : ControllerBase
     {
         private readonly IPlanService _planService;
+        private readonly IUserService _userService;
 
-        public PlanController(IPlanService planService)
+        public PlanController(IPlanService planService, IUserService userService)
         {
             _planService = planService;
+            _userService = userService;
+        }
+
+        /// <summary>
+        /// Gets the currency based on user's location
+        /// </summary>
+        private string GetCurrencyFromLocation(string? location)
+        {
+            return location?.ToUpper() switch
+            {
+                "GB" => "GBP",
+                "NG" => "NGN",
+                _ => "NGN" // Default to NGN
+            };
         }
 
         [HttpGet("getAllPlans")]
@@ -45,18 +60,23 @@ namespace inflan_api.Controllers
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
             if (userIdClaim == null)
-                return StatusCode(401, new { 
+                return StatusCode(401, new {
                     message = "Unauthorized: Please login again",
-                    code = "INVALID_TOKEN" 
+                    code = "INVALID_TOKEN"
                 });
 
             int userId = int.Parse(userIdClaim.Value);
             plan.UserId = userId;
+
+            // Auto-set currency based on user's location
+            var user = await _userService.GetUserById(userId);
+            plan.Currency = GetCurrencyFromLocation(user?.Location);
+
             var created = await _planService.CreatePlan(plan);
-            return StatusCode(201, new { 
+            return StatusCode(201, new {
                 message = "Plan created successfully",
-                code = Message.PLAN_CREATED_SUCCESSFULLY, 
-                plan = created 
+                code = Message.PLAN_CREATED_SUCCESSFULLY,
+                plan = created
             });
         }
 

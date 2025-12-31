@@ -9,11 +9,22 @@ public class Withdrawal
     public long AmountInPence { get; set; }
     public string Currency { get; set; } = CurrencyConstants.PrimaryCurrency;
     public int Status { get; set; } = (int)WithdrawalStatus.PENDING;
+
+    // Payment gateway used for this withdrawal
+    public string PaymentGateway { get; set; } = "paystack"; // "paystack" or "truelayer"
+
+    // Paystack-specific fields
     public string? PaystackTransferCode { get; set; }
     public string? PaystackRecipientCode { get; set; }
+
+    // TrueLayer-specific fields
+    public string? TrueLayerPayoutId { get; set; }
+    public string? TrueLayerBeneficiaryId { get; set; }
+
+    // Bank details (for display)
     public string? BankName { get; set; }
-    public string? BankCode { get; set; }
-    public string? AccountNumber { get; set; }
+    public string? BankCode { get; set; } // Sort code for UK, bank code for Nigeria
+    public string? AccountNumber { get; set; } // Last 4 digits only
     public string? AccountName { get; set; }
     public string? FailureReason { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

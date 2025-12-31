@@ -180,6 +180,75 @@ public class PaymentModuleController : ControllerBase
     }
 
     /// <summary>
+    /// Verify payment by gateway payment ID (e.g., TrueLayer payment_id from callback URL)
+    /// This endpoint is used by the frontend callback page to verify payment status
+    /// </summary>
+    [HttpPost("verify-by-gateway/{gatewayPaymentId}")]
+    [Authorize]
+    public async Task<IActionResult> VerifyPaymentByGatewayId(string gatewayPaymentId)
+    {
+        try
+        {
+            _logger.LogInformation("Verifying payment by gateway ID: {GatewayPaymentId}", gatewayPaymentId);
+
+            var result = await _paymentOrchestrator.VerifyPaymentByGatewayIdAsync(gatewayPaymentId);
+
+            if (result.Success)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = "Payment verified successfully",
+                    status = result.Status,
+                    transactionReference = result.TransactionReference
+                });
+            }
+
+            return BadRequest(new { success = false, message = result.ErrorMessage });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying payment by gateway ID {GatewayPaymentId}", gatewayPaymentId);
+            return BadRequest(new { success = false, message = "Error verifying payment" });
+        }
+    }
+
+    /// <summary>
+    /// Get payment status by gateway payment ID (e.g., TrueLayer payment_id)
+    /// </summary>
+    [HttpGet("status-by-gateway/{gatewayPaymentId}")]
+    [Authorize]
+    public async Task<IActionResult> GetPaymentStatusByGatewayId(string gatewayPaymentId)
+    {
+        try
+        {
+            var transaction = await _paymentOrchestrator.GetPaymentByGatewayIdAsync(gatewayPaymentId);
+
+            if (transaction == null)
+                return NotFound(new { message = "Transaction not found" });
+
+            return Ok(new
+            {
+                transactionReference = transaction.TransactionReference,
+                status = transaction.TransactionStatus,
+                amountInPence = transaction.AmountInPence,
+                platformFeeInPence = transaction.PlatformFeeInPence,
+                totalAmountInPence = transaction.TotalAmountInPence,
+                currency = transaction.Currency,
+                gateway = transaction.Gateway,
+                createdAt = transaction.CreatedAt,
+                completedAt = transaction.CompletedAt,
+                failureMessage = transaction.FailureMessage
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment status by gateway ID {GatewayPaymentId}", gatewayPaymentId);
+            return BadRequest(new { success = false, message = "Error getting payment status" });
+        }
+    }
+
+    /// <summary>
     /// Charge saved card for recurring payment (Paystack only)
     /// </summary>
     [HttpPost("charge-saved-card")]

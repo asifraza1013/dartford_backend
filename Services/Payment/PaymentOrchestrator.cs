@@ -728,8 +728,12 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             }
 
             // Get gateway and verify payment status
+            // For TrueLayer, we need to use the GatewayPaymentId, for Paystack we use the transaction reference
             var gateway = _gatewayFactory.GetGateway(transaction.Gateway);
-            var statusResult = await gateway.GetPaymentStatusAsync(transactionReference);
+            var gatewayReference = transaction.Gateway.ToLower() == "truelayer"
+                ? transaction.GatewayPaymentId ?? transactionReference
+                : transactionReference;
+            var statusResult = await gateway.GetPaymentStatusAsync(gatewayReference);
 
             if (!statusResult.Success)
             {
@@ -879,6 +883,120 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         {
             _logger.LogError(ex, "Error handling transfer webhook");
             return false;
+        }
+    }
+
+    public async Task<Transaction?> GetPaymentByGatewayIdAsync(string gatewayPaymentId)
+    {
+        return await _transactionRepo.GetByGatewayPaymentIdAsync(gatewayPaymentId);
+    }
+
+    public async Task<PaymentVerificationResult> VerifyPaymentByGatewayIdAsync(string gatewayPaymentId)
+    {
+        try
+        {
+            // Find transaction by gateway payment ID
+            var transaction = await _transactionRepo.GetByGatewayPaymentIdAsync(gatewayPaymentId);
+            if (transaction == null)
+            {
+                return new PaymentVerificationResult
+                {
+                    Success = false,
+                    ErrorMessage = "Transaction not found for this payment ID"
+                };
+            }
+
+            // Already completed?
+            if (transaction.TransactionStatus == (int)PaymentStatus.COMPLETED)
+            {
+                return new PaymentVerificationResult
+                {
+                    Success = true,
+                    Status = "success",
+                    TransactionReference = transaction.TransactionReference
+                };
+            }
+
+            // Get gateway and verify payment status
+            var gateway = _gatewayFactory.GetGateway(transaction.Gateway);
+            var statusResult = await gateway.GetPaymentStatusAsync(gatewayPaymentId);
+
+            _logger.LogInformation("Gateway status for {GatewayPaymentId}: Success={Success}, Status={Status}",
+                gatewayPaymentId, statusResult.Success, statusResult.Status);
+
+            if (!statusResult.Success)
+            {
+                return new PaymentVerificationResult
+                {
+                    Success = false,
+                    ErrorMessage = statusResult.ErrorMessage ?? "Failed to verify payment with gateway",
+                    TransactionReference = transaction.TransactionReference
+                };
+            }
+
+            // Update transaction based on gateway response
+            if (statusResult.Status == PaymentStatusType.Successful)
+            {
+                transaction.TransactionStatus = (int)PaymentStatus.COMPLETED;
+                transaction.CompletedAt = DateTime.UtcNow;
+                transaction.UpdatedAt = DateTime.UtcNow;
+
+                // Create webhook-like result to process successful payment
+                var webhookResult = new WebhookProcessResult
+                {
+                    Success = true,
+                    Status = PaymentStatusType.Successful,
+                    TransactionReference = transaction.TransactionReference,
+                    AuthorizationCode = statusResult.AuthorizationCode,
+                    Card = statusResult.Card
+                };
+
+                await HandleSuccessfulPayment(transaction, webhookResult);
+                await _transactionRepo.UpdateTransactionAsync(transaction);
+
+                _logger.LogInformation("Payment verified and processed by gateway ID: {GatewayPaymentId}", gatewayPaymentId);
+
+                return new PaymentVerificationResult
+                {
+                    Success = true,
+                    Status = "success",
+                    TransactionReference = transaction.TransactionReference
+                };
+            }
+            else if (statusResult.Status == PaymentStatusType.Failed ||
+                     statusResult.Status == PaymentStatusType.Abandoned ||
+                     statusResult.Status == PaymentStatusType.Cancelled)
+            {
+                transaction.TransactionStatus = (int)PaymentStatus.FAILED;
+                transaction.FailureMessage = statusResult.ErrorMessage ?? "Payment failed";
+                transaction.UpdatedAt = DateTime.UtcNow;
+                await _transactionRepo.UpdateTransactionAsync(transaction);
+
+                return new PaymentVerificationResult
+                {
+                    Success = false,
+                    Status = statusResult.Status.ToString().ToLower(),
+                    ErrorMessage = statusResult.ErrorMessage ?? "Payment was not successful",
+                    TransactionReference = transaction.TransactionReference
+                };
+            }
+
+            // Still pending
+            return new PaymentVerificationResult
+            {
+                Success = true,
+                Status = "pending",
+                TransactionReference = transaction.TransactionReference
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying payment by gateway ID {GatewayPaymentId}", gatewayPaymentId);
+            return new PaymentVerificationResult
+            {
+                Success = false,
+                ErrorMessage = "An error occurred while verifying payment"
+            };
         }
     }
 }

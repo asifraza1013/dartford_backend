@@ -41,6 +41,15 @@ public class TransactionRepository : ITransactionRepository
             .FirstOrDefaultAsync(t => t.TransactionReference == transactionReference);
     }
 
+    public async Task<Transaction?> GetByGatewayPaymentIdAsync(string gatewayPaymentId)
+    {
+        return await _context.Transactions
+            .Include(t => t.Campaign)
+            .Include(t => t.Milestone)
+            .Include(t => t.PaymentMethod)
+            .FirstOrDefaultAsync(t => t.GatewayPaymentId == gatewayPaymentId);
+    }
+
     public async Task<List<Transaction>> GetByCampaignIdAsync(int campaignId)
     {
         return await _context.Transactions

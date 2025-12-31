@@ -405,11 +405,20 @@ public class TrueLayerGateway : IPaymentGateway
             ? "https://payment.truelayer-sandbox.com/payments"
             : "https://payment.truelayer.com/payments";
 
+        // Build return URI with payment_id as query param so frontend can verify the payment
+        // TrueLayer doesn't pass our transaction reference back, only their payment_id
+        var returnUri = _redirectUri;
+        if (!string.IsNullOrEmpty(paymentId))
+        {
+            var separator = returnUri.Contains("?") ? "&" : "?";
+            returnUri = $"{returnUri}{separator}payment_id={paymentId}";
+        }
+
         var queryParams = new List<string>
         {
             $"payment_id={paymentId}",
             $"resource_token={resourceToken}",
-            $"return_uri={Uri.EscapeDataString(_redirectUri)}"
+            $"return_uri={Uri.EscapeDataString(returnUri)}"
         };
 
         return $"{basePaymentUrl}#{string.Join("&", queryParams)}";

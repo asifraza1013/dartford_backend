@@ -8,6 +8,7 @@ public interface ITransactionRepository
     Task UpdateTransactionAsync(Transaction transaction);
     Task<Transaction?> GetTransactionByIdAsync(int id);
     Task<Transaction?> GetByTransactionReferenceAsync(string transactionReference);
+    Task<Transaction?> GetByGatewayPaymentIdAsync(string gatewayPaymentId);
     Task<List<Transaction>> GetByCampaignIdAsync(int campaignId);
     Task<List<Transaction>> GetByUserIdAsync(int userId, int page = 1, int pageSize = 20);
 }

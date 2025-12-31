@@ -48,6 +48,16 @@ public interface IPaymentOrchestrator
     /// Verify payment with gateway and process if successful (for local dev without webhooks)
     /// </summary>
     Task<PaymentVerificationResult> VerifyAndProcessPaymentAsync(string transactionReference);
+
+    /// <summary>
+    /// Get transaction by gateway payment ID (e.g., TrueLayer payment_id)
+    /// </summary>
+    Task<Transaction?> GetPaymentByGatewayIdAsync(string gatewayPaymentId);
+
+    /// <summary>
+    /// Verify payment by gateway payment ID and process if successful
+    /// </summary>
+    Task<PaymentVerificationResult> VerifyPaymentByGatewayIdAsync(string gatewayPaymentId);
 }
 
 public class BrandOutstandingBalanceDto
@@ -64,6 +74,7 @@ public class PaymentVerificationResult
     public bool Success { get; set; }
     public string? Status { get; set; }
     public string? ErrorMessage { get; set; }
+    public string? TransactionReference { get; set; }
 }
 
 public class InitiatePaymentRequest

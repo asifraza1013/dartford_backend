@@ -341,12 +341,14 @@ public class PayoutController : ControllerBase
     public async Task<IActionResult> GetAvailableForWithdrawal()
     {
         var userId = GetCurrentUserId();
-        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId);
-        var totalWithdrawn = await _withdrawalRepo.GetTotalWithdrawnByInfluencerIdAsync(userId);
-        var available = totalReleased - totalWithdrawn;
 
         // Get user's currency based on location
         var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        // Filter by currency to ensure correct balance calculation
+        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId, userCurrency);
+        var totalWithdrawn = await _withdrawalRepo.GetTotalWithdrawnByInfluencerIdAsync(userId, userCurrency);
+        var available = totalReleased - totalWithdrawn;
 
         return Ok(new
         {
@@ -383,18 +385,18 @@ public class PayoutController : ControllerBase
             return BadRequest(new { message = "Withdrawal amount must be greater than 0" });
         }
 
-        // Check available balance
-        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId);
-        var totalWithdrawn = await _withdrawalRepo.GetTotalWithdrawnByInfluencerIdAsync(userId);
+        // Get user's currency and gateway based on location
+        var (userCurrency, gateway) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        // Check available balance (filtered by currency)
+        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId, userCurrency);
+        var totalWithdrawn = await _withdrawalRepo.GetTotalWithdrawnByInfluencerIdAsync(userId, userCurrency);
         var available = totalReleased - totalWithdrawn;
 
         if (request.AmountInPence > available)
         {
             return BadRequest(new { message = "Insufficient balance for withdrawal" });
         }
-
-        // Get user's currency and gateway based on location
-        var (userCurrency, gateway) = await GetUserCurrencyAndGatewayAsync(userId);
 
         // Route to appropriate gateway based on user's currency
         if (gateway == "truelayer")

@@ -126,4 +126,13 @@ public class InfluencerPayoutRepository : IInfluencerPayoutRepository
             .Where(p => p.InfluencerId == influencerId && p.Status == (int)PayoutStatus.RELEASED)
             .SumAsync(p => p.NetAmountInPence);
     }
+
+    public async Task<long> GetTotalReleasedByInfluencerIdAsync(int influencerId, string currency)
+    {
+        return await _context.InfluencerPayouts
+            .Where(p => p.InfluencerId == influencerId &&
+                        p.Status == (int)PayoutStatus.RELEASED &&
+                        p.Currency == currency)
+            .SumAsync(p => p.NetAmountInPence);
+    }
 }

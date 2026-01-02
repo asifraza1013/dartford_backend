@@ -14,4 +14,5 @@ public interface IInfluencerPayoutRepository
     Task<InfluencerPayout> UpdateAsync(InfluencerPayout payout);
     Task<long> GetTotalPendingByInfluencerIdAsync(int influencerId);
     Task<long> GetTotalReleasedByInfluencerIdAsync(int influencerId);
+    Task<long> GetTotalReleasedByInfluencerIdAsync(int influencerId, string currency);
 }

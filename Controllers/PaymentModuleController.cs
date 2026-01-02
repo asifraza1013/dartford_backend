@@ -1,4 +1,6 @@
 using inflan_api.Interfaces;
+using inflan_api.Models;
+using inflan_api.Utils;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -531,6 +533,52 @@ public class PaymentModuleController : ControllerBase
 
         await _paymentMethodRepo.DeleteAsync(id);
         return Ok(new { message = "Payment method deleted" });
+    }
+
+    /// <summary>
+    /// Get payment options for a campaign (checks if full payment is allowed)
+    /// </summary>
+    [HttpGet("payment-options/{campaignId}")]
+    [Authorize]
+    public async Task<IActionResult> GetPaymentOptions(int campaignId)
+    {
+        try
+        {
+            var milestones = await _milestoneService.GetCampaignMilestonesAsync(campaignId);
+            var hasPaidMilestones = milestones.Any(m => m.Status == (int)MilestoneStatus.PAID);
+            var pendingMilestones = milestones.Where(m => m.Status == (int)MilestoneStatus.PENDING || m.Status == (int)MilestoneStatus.OVERDUE).ToList();
+
+            var pendingMilestonesList = pendingMilestones.Select(m => new
+            {
+                m.Id,
+                m.MilestoneNumber,
+                m.Title,
+                m.Description,
+                m.AmountInPence,
+                m.PlatformFeeInPence,
+                m.DueDate,
+                m.Status,
+                isOverdue = m.Status == (int)MilestoneStatus.OVERDUE
+            }).ToList();
+
+            return Ok(new
+            {
+                fullPaymentAllowed = !hasPaidMilestones,
+                fullPaymentDisabledReason = hasPaidMilestones
+                    ? "Full payment is not available because one or more milestones have already been paid. Please pay the remaining milestones individually."
+                    : null,
+                hasPaidMilestones,
+                paidMilestoneCount = milestones.Count(m => m.Status == (int)MilestoneStatus.PAID),
+                pendingMilestoneCount = pendingMilestones.Count,
+                totalMilestoneCount = milestones.Count,
+                pendingMilestones = pendingMilestonesList
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting payment options for campaign {CampaignId}", campaignId);
+            return BadRequest(new { message = "Error getting payment options" });
+        }
     }
 
     /// <summary>

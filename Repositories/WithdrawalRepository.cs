@@ -87,6 +87,16 @@ public class WithdrawalRepository : IWithdrawalRepository
             .SumAsync(w => w.AmountInPence);
     }
 
+    public async Task<long> GetTotalWithdrawnByInfluencerIdAsync(int influencerId, string currency)
+    {
+        return await _context.Withdrawals
+            .Where(w => w.InfluencerId == influencerId &&
+                        w.Currency == currency &&
+                        (w.Status == (int)WithdrawalStatus.COMPLETED ||
+                         w.Status == (int)WithdrawalStatus.PROCESSING))
+            .SumAsync(w => w.AmountInPence);
+    }
+
     private static IQueryable<Withdrawal> ApplyFilters(IQueryable<Withdrawal> query, PaymentFilterDto filter)
     {
         if (filter.DateFrom.HasValue)

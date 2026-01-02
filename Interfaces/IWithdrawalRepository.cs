@@ -13,4 +13,5 @@ public interface IWithdrawalRepository
     Task<Withdrawal> CreateAsync(Withdrawal withdrawal);
     Task<Withdrawal> UpdateAsync(Withdrawal withdrawal);
     Task<long> GetTotalWithdrawnByInfluencerIdAsync(int influencerId);
+    Task<long> GetTotalWithdrawnByInfluencerIdAsync(int influencerId, string currency);
 }

@@ -90,6 +90,19 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             }
             else
             {
+                // Full payment attempt - check if any milestones have already been paid
+                var milestones = await _milestoneRepo.GetByCampaignIdAsync(request.CampaignId);
+                var hasPaidMilestones = milestones.Any(m => m.Status == (int)MilestoneStatus.PAID);
+
+                if (hasPaidMilestones)
+                {
+                    return new PaymentInitiationResponse
+                    {
+                        Success = false,
+                        ErrorMessage = "Full payment is not available because one or more milestones have already been paid. Please pay the remaining milestones individually."
+                    };
+                }
+
                 // Full payment - use remaining balance or total if not set
                 if (campaign.TotalAmountInPence > 0)
                 {

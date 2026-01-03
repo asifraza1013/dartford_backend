@@ -41,6 +41,12 @@ public class PaymentMethod
 
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// Whether this payment method can be used for recurring/auto payments
+    /// Paystack cards with valid AuthorizationCode can be reused
+    /// </summary>
+    public bool IsReusable { get; set; } = false;
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public DateTime? LastUsedAt { get; set; }

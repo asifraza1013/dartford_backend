@@ -36,6 +36,25 @@ public class InfluencerBankAccountRepository : IInfluencerBankAccountRepository
             .FirstOrDefaultAsync(a => a.InfluencerId == influencerId && a.IsDefault && a.IsActive);
     }
 
+    public async Task<InfluencerBankAccount?> GetDefaultByInfluencerIdAndCurrencyAsync(int influencerId, string currency)
+    {
+        // First try to get default account for this currency
+        var defaultAccount = await _context.InfluencerBankAccounts
+            .FirstOrDefaultAsync(a => a.InfluencerId == influencerId &&
+                                      a.Currency == currency &&
+                                      a.IsDefault &&
+                                      a.IsActive);
+
+        if (defaultAccount != null)
+            return defaultAccount;
+
+        // If no default for this currency, get any active account for this currency
+        return await _context.InfluencerBankAccounts
+            .FirstOrDefaultAsync(a => a.InfluencerId == influencerId &&
+                                      a.Currency == currency &&
+                                      a.IsActive);
+    }
+
     public async Task<InfluencerBankAccount?> GetByRecipientCodeAsync(string recipientCode)
     {
         return await _context.InfluencerBankAccounts

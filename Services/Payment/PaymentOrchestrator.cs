@@ -19,6 +19,9 @@ public class PaymentOrchestrator : IPaymentOrchestrator
     private readonly IPlatformSettingsService _settingsService;
     private readonly INotificationService _notificationService;
     private readonly IWithdrawalRepository _withdrawalRepo;
+    private readonly IInfluencerBankAccountRepository _bankAccountRepo;
+    private readonly PaystackGateway _paystackGateway;
+    private readonly TrueLayerGateway _trueLayerGateway;
     private readonly ILogger<PaymentOrchestrator> _logger;
 
     public PaymentOrchestrator(
@@ -33,6 +36,9 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         IPlatformSettingsService settingsService,
         INotificationService notificationService,
         IWithdrawalRepository withdrawalRepo,
+        IInfluencerBankAccountRepository bankAccountRepo,
+        PaystackGateway paystackGateway,
+        TrueLayerGateway trueLayerGateway,
         ILogger<PaymentOrchestrator> logger)
     {
         _gatewayFactory = gatewayFactory;
@@ -46,6 +52,9 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         _settingsService = settingsService;
         _notificationService = notificationService;
         _withdrawalRepo = withdrawalRepo;
+        _bankAccountRepo = bankAccountRepo;
+        _paystackGateway = paystackGateway;
+        _trueLayerGateway = trueLayerGateway;
         _logger = logger;
     }
 
@@ -503,6 +512,209 @@ public class PaymentOrchestrator : IPaymentOrchestrator
 
         _logger.LogInformation("Payout auto-released: {Amount} pence to influencer {InfluencerId} for campaign {CampaignId}",
             netAmount, campaign.InfluencerId, campaign.Id);
+
+        // Auto-initiate withdrawal to influencer's bank account
+        await InitiateAutoWithdrawalAsync(campaign.InfluencerId, netAmount, transaction.Currency, payout.Id);
+    }
+
+    /// <summary>
+    /// Automatically initiate withdrawal to influencer's bank account when brand pays
+    /// </summary>
+    private async Task InitiateAutoWithdrawalAsync(int influencerId, long amountInPence, string currency, int payoutId)
+    {
+        try
+        {
+            // Get influencer's default bank account for this currency
+            var bankAccount = await _bankAccountRepo.GetDefaultByInfluencerIdAndCurrencyAsync(influencerId, currency);
+
+            if (bankAccount == null)
+            {
+                _logger.LogWarning("Auto-withdrawal skipped: No bank account found for influencer {InfluencerId} with currency {Currency}. " +
+                    "Funds are available for manual withdrawal once bank account is added.",
+                    influencerId, currency);
+
+                // Send notification to influencer to add bank account
+                await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                {
+                    UserId = influencerId,
+                    Type = NotificationType.Payment,
+                    Title = "Add Bank Account to Receive Payment",
+                    Message = $"You have received a payment of {FormatAmount(amountInPence, currency)}. " +
+                        "Please add your bank account details to automatically receive funds.",
+                    ReferenceType = "payout",
+                    ReferenceId = payoutId
+                });
+                return;
+            }
+
+            // Create withdrawal record
+            var withdrawal = new Withdrawal
+            {
+                InfluencerId = influencerId,
+                AmountInPence = amountInPence,
+                Currency = currency,
+                PaymentGateway = bankAccount.PaymentGateway,
+                BankName = bankAccount.BankName,
+                BankCode = bankAccount.BankCode,
+                AccountNumber = bankAccount.AccountNumberLast4,
+                AccountName = bankAccount.AccountName,
+                Status = (int)WithdrawalStatus.PROCESSING,
+                CreatedAt = DateTime.UtcNow,
+                ProcessedAt = DateTime.UtcNow
+            };
+
+            // Route to appropriate gateway
+            if (currency == "GBP" && bankAccount.PaymentGateway == "truelayer")
+            {
+                await ProcessAutoWithdrawalTrueLayer(withdrawal, bankAccount);
+            }
+            else if (currency == "NGN" && bankAccount.PaymentGateway == "paystack")
+            {
+                await ProcessAutoWithdrawalPaystack(withdrawal, bankAccount);
+            }
+            else
+            {
+                _logger.LogWarning("Auto-withdrawal skipped: Unsupported currency/gateway combination - Currency: {Currency}, Gateway: {Gateway}",
+                    currency, bankAccount.PaymentGateway);
+                return;
+            }
+
+            await _withdrawalRepo.CreateAsync(withdrawal);
+
+            // Send notification based on withdrawal status
+            var formattedAmount = FormatAmount(amountInPence, currency);
+            if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                {
+                    UserId = influencerId,
+                    Type = NotificationType.Payment,
+                    Title = "Payment Sent to Your Bank",
+                    Message = $"{formattedAmount} has been sent to your bank account ({bankAccount.BankName} ****{bankAccount.AccountNumberLast4}).",
+                    ReferenceId = withdrawal.Id,
+                    ReferenceType = "withdrawal"
+                });
+            }
+            else if (withdrawal.Status == (int)WithdrawalStatus.PROCESSING)
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                {
+                    UserId = influencerId,
+                    Type = NotificationType.Payment,
+                    Title = "Payment Processing",
+                    Message = $"{formattedAmount} is being transferred to your bank account. You'll be notified when complete.",
+                    ReferenceId = withdrawal.Id,
+                    ReferenceType = "withdrawal"
+                });
+            }
+            else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
+            {
+                await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                {
+                    UserId = influencerId,
+                    Type = NotificationType.Payment,
+                    Title = "Withdrawal Failed",
+                    Message = $"Failed to send {formattedAmount} to your bank. " +
+                        $"Reason: {withdrawal.FailureReason ?? "Unknown error"}. Please check your bank details.",
+                    ReferenceId = withdrawal.Id,
+                    ReferenceType = "withdrawal"
+                });
+            }
+
+            _logger.LogInformation("Auto-withdrawal initiated for influencer {InfluencerId}: {Amount} {Currency} via {Gateway}",
+                influencerId, amountInPence, currency, bankAccount.PaymentGateway);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initiating auto-withdrawal for influencer {InfluencerId}", influencerId);
+            // Don't fail the payment flow - influencer can still manually withdraw
+        }
+    }
+
+    private async Task ProcessAutoWithdrawalPaystack(Withdrawal withdrawal, InfluencerBankAccount bankAccount)
+    {
+        if (string.IsNullOrEmpty(bankAccount.PaystackRecipientCode))
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = "Bank account not configured for Paystack withdrawals";
+            return;
+        }
+
+        var transferReference = $"AUTO-WD-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        var transferResult = await _paystackGateway.InitiateTransferAsync(new TransferRequest
+        {
+            RecipientCode = bankAccount.PaystackRecipientCode,
+            AmountInPence = withdrawal.AmountInPence,
+            Reason = $"Inflan auto-payout",
+            Reference = transferReference,
+            Currency = "NGN"
+        });
+
+        if (!transferResult.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = transferResult.ErrorMessage ?? "Failed to initiate transfer";
+            return;
+        }
+
+        withdrawal.PaystackTransferCode = transferResult.TransferCode;
+
+        if (transferResult.Status == TransferStatus.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+            withdrawal.CompletedAt = DateTime.UtcNow;
+        }
+        else if (transferResult.Status == TransferStatus.Failed || transferResult.Status == TransferStatus.Reversed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = transferResult.ErrorMessage ?? "Transfer failed";
+        }
+        // Otherwise keep as PROCESSING - webhook will update status
+    }
+
+    private async Task ProcessAutoWithdrawalTrueLayer(Withdrawal withdrawal, InfluencerBankAccount bankAccount)
+    {
+        // TrueLayer requires sort code and account number which we don't store (only last 4)
+        // For TrueLayer auto-payouts, we need to use the beneficiary ID if available
+        if (string.IsNullOrEmpty(bankAccount.TrueLayerBeneficiaryId))
+        {
+            // Without stored full bank details or beneficiary ID, we can't auto-withdraw for GBP
+            // Mark as processing and the influencer will need to manually confirm
+            withdrawal.Status = (int)WithdrawalStatus.PENDING;
+            withdrawal.FailureReason = "GBP auto-withdrawal requires bank account verification. Please manually request withdrawal.";
+            _logger.LogWarning("Auto-withdrawal for GBP skipped: No TrueLayer beneficiary ID for influencer bank account {BankAccountId}",
+                bankAccount.Id);
+            return;
+        }
+
+        var payoutReference = $"AUTO-TL-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        var payoutResult = await _trueLayerGateway.InitiatePayoutAsync(new TrueLayerPayoutRequest
+        {
+            AmountInPence = withdrawal.AmountInPence,
+            Reference = payoutReference,
+            ExternalAccountId = bankAccount.TrueLayerBeneficiaryId
+        });
+
+        if (!payoutResult.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Failed to initiate TrueLayer payout";
+            return;
+        }
+
+        withdrawal.TrueLayerPayoutId = payoutResult.PayoutId;
+
+        if (payoutResult.Status == TrueLayerPayoutStatus.Executed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+            withdrawal.CompletedAt = DateTime.UtcNow;
+        }
+        else if (payoutResult.Status == TrueLayerPayoutStatus.Failed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "TrueLayer payout failed";
+        }
+        // Otherwise keep as PROCESSING - webhook will update status
     }
 
     public async Task<PaymentInitiationResponse> ChargeRecurringPaymentAsync(int milestoneId, int paymentMethodId)

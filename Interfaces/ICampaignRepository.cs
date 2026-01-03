@@ -11,5 +11,5 @@ public interface ICampaignRepository
     Task Delete(int id);
     Task<IEnumerable<Campaign>> GetCampaignsByInfluencerId(int influencerId);
     Task<IEnumerable<Campaign>> GetCampaignsByBrandId(int brandId);
-
+    Task<IEnumerable<Campaign>> GetAllWithAutoPay();
 }

@@ -37,6 +37,10 @@ namespace inflan_api
             builder.Services.Configure<FollowerSyncConfig>(
                 builder.Configuration.GetSection(FollowerSyncConfig.SectionName));
 
+            // Configure Milestone Payment settings
+            builder.Services.Configure<MilestonePaymentConfig>(
+                builder.Configuration.GetSection(MilestonePaymentConfig.SectionName));
+
             // Configure file upload limits (25MB to allow for 20MB videos with overhead)
             builder.Services.Configure<FormOptions>(options =>
             {
@@ -140,6 +144,9 @@ namespace inflan_api
             
             // Register background service for weekly sync
             builder.Services.AddHostedService<FollowerSyncBackgroundService>();
+
+            // Register background service for milestone auto-payment
+            builder.Services.AddHostedService<MilestonePaymentBackgroundService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

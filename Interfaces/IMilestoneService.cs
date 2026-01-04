@@ -62,7 +62,11 @@ public interface IMilestoneService
     /// <summary>
     /// Update campaign payment configuration
     /// </summary>
-    Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled);
+    /// <param name="campaignId">Campaign ID</param>
+    /// <param name="paymentType">Payment type (1=ONE_TIME, 2=MILESTONE)</param>
+    /// <param name="isAutoPayEnabled">Whether auto-pay is enabled</param>
+    /// <param name="brandUserId">Brand's user ID (required if enabling auto-pay)</param>
+    Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled, int? brandUserId = null);
 }
 
 public class CreateMilestoneDto

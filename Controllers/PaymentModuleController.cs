@@ -436,12 +436,18 @@ public class PaymentModuleController : ControllerBase
     {
         try
         {
-            await _milestoneService.UpdateCampaignPaymentConfigAsync(campaignId, request.PaymentType, request.IsAutoPayEnabled);
+            var userId = GetCurrentUserId();
+            await _milestoneService.UpdateCampaignPaymentConfigAsync(campaignId, request.PaymentType, request.IsAutoPayEnabled, userId);
             return Ok(new { message = "Payment configuration updated" });
         }
         catch (ArgumentException ex)
         {
             return NotFound(new { message = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            // This is thrown when trying to enable auto-pay without a saved card
+            return BadRequest(new { message = ex.Message });
         }
     }
 

@@ -11,6 +11,7 @@ public class MilestoneService : IMilestoneService
     private readonly ICampaignRepository _campaignRepo;
     private readonly IPlanRepository _planRepo;
     private readonly IPlatformSettingsService _settingsService;
+    private readonly IPaymentMethodRepository _paymentMethodRepo;
     private readonly ILogger<MilestoneService> _logger;
 
     public MilestoneService(
@@ -18,12 +19,14 @@ public class MilestoneService : IMilestoneService
         ICampaignRepository campaignRepo,
         IPlanRepository planRepo,
         IPlatformSettingsService settingsService,
+        IPaymentMethodRepository paymentMethodRepo,
         ILogger<MilestoneService> logger)
     {
         _milestoneRepo = milestoneRepo;
         _campaignRepo = campaignRepo;
         _planRepo = planRepo;
         _settingsService = settingsService;
+        _paymentMethodRepo = paymentMethodRepo;
         _logger = logger;
     }
 
@@ -282,11 +285,27 @@ public class MilestoneService : IMilestoneService
         _logger.LogInformation("Deleted milestone {MilestoneId}", milestoneId);
     }
 
-    public async Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled)
+    public async Task UpdateCampaignPaymentConfigAsync(int campaignId, int paymentType, bool isAutoPayEnabled, int? brandUserId = null)
     {
         var campaign = await _campaignRepo.GetById(campaignId);
         if (campaign == null)
             throw new ArgumentException($"Campaign {campaignId} not found");
+
+        // If enabling auto-pay, verify the brand has a saved payment method
+        if (isAutoPayEnabled)
+        {
+            // Get the brand user ID from the campaign if not provided
+            var userId = brandUserId ?? campaign.BrandId;
+
+            var paymentMethods = await _paymentMethodRepo.GetByUserIdAsync(userId);
+            if (paymentMethods == null || !paymentMethods.Any())
+            {
+                throw new InvalidOperationException("Cannot enable auto-pay without a saved payment method. Please save a card first by paying a milestone.");
+            }
+
+            _logger.LogInformation("Brand {UserId} has {Count} saved payment methods, allowing auto-pay",
+                userId, paymentMethods.Count);
+        }
 
         campaign.PaymentType = paymentType;
         campaign.IsRecurringEnabled = isAutoPayEnabled;

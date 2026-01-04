@@ -22,6 +22,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
     private readonly IInfluencerBankAccountRepository _bankAccountRepo;
     private readonly PaystackGateway _paystackGateway;
     private readonly TrueLayerGateway _trueLayerGateway;
+    private readonly IEmailService _emailService;
     private readonly ILogger<PaymentOrchestrator> _logger;
 
     public PaymentOrchestrator(
@@ -39,6 +40,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         IInfluencerBankAccountRepository bankAccountRepo,
         PaystackGateway paystackGateway,
         TrueLayerGateway trueLayerGateway,
+        IEmailService emailService,
         ILogger<PaymentOrchestrator> logger)
     {
         _gatewayFactory = gatewayFactory;
@@ -55,6 +57,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         _bankAccountRepo = bankAccountRepo;
         _paystackGateway = paystackGateway;
         _trueLayerGateway = trueLayerGateway;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -1040,21 +1043,33 @@ public class PaymentOrchestrator : IPaymentOrchestrator
     {
         try
         {
-            _logger.LogInformation("Processing transfer webhook - TransferCode: {TransferCode}, Status: {Status}",
-                result.TransferCode, result.Status);
+            _logger.LogInformation("Processing transfer webhook - TransferCode: {TransferCode}, TransactionRef: {TransactionRef}, Status: {Status}",
+                result.TransferCode, result.TransactionReference, result.Status);
 
-            // Find withdrawal by transfer code
+            // Find withdrawal by transfer code (Paystack) or payout ID (TrueLayer)
             Withdrawal? withdrawal = null;
+
+            // First try by Paystack transfer code
             if (!string.IsNullOrEmpty(result.TransferCode))
             {
                 withdrawal = await _withdrawalRepo.GetByTransferCodeAsync(result.TransferCode);
             }
 
+            // If not found, try by TrueLayer payout ID (stored in TransactionReference for payout webhooks)
+            if (withdrawal == null && !string.IsNullOrEmpty(result.TransactionReference))
+            {
+                withdrawal = await _withdrawalRepo.GetByTrueLayerPayoutIdAsync(result.TransactionReference);
+            }
+
             if (withdrawal == null)
             {
-                _logger.LogWarning("Withdrawal not found for transfer code: {TransferCode}", result.TransferCode);
+                _logger.LogWarning("Withdrawal not found for transfer code: {TransferCode} or payout ID: {PayoutId}",
+                    result.TransferCode, result.TransactionReference);
                 return false;
             }
+
+            _logger.LogInformation("Found withdrawal {WithdrawalId} for webhook, current status: {Status}",
+                withdrawal.Id, (WithdrawalStatus)withdrawal.Status);
 
             var previousStatus = withdrawal.Status;
 
@@ -1071,14 +1086,21 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                 withdrawal.FailureReason = result.ErrorMessage ?? "Transfer failed";
                 _logger.LogWarning("Withdrawal {WithdrawalId} failed via webhook: {Error}",
                     withdrawal.Id, result.ErrorMessage);
+
+                // Note: The amount is automatically returned to the influencer's available balance
+                // because our balance calculation excludes FAILED withdrawals
+                // (only COMPLETED and PROCESSING withdrawals are subtracted from available balance)
             }
 
             await _withdrawalRepo.UpdateAsync(withdrawal);
 
-            // Send notification if status changed
+            // Send notification and email if status changed
             if (previousStatus != withdrawal.Status)
             {
                 var formattedAmount = FormatAmount(withdrawal.AmountInPence, withdrawal.Currency);
+                var user = await _userRepo.GetById(withdrawal.InfluencerId);
+                var influencerName = user?.Name ?? "Influencer";
+                var influencerEmail = user?.Email ?? "";
 
                 if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
                 {
@@ -1091,6 +1113,25 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                         ReferenceId = withdrawal.Id,
                         ReferenceType = "withdrawal"
                     });
+
+                    // Send email notification
+                    if (!string.IsNullOrEmpty(influencerEmail))
+                    {
+                        try
+                        {
+                            await _emailService.SendWithdrawalSuccessAsync(
+                                influencerEmail,
+                                influencerName,
+                                withdrawal.AmountInPence,
+                                withdrawal.Currency,
+                                withdrawal.BankName ?? "Bank",
+                                withdrawal.AccountNumber?.Length >= 4 ? withdrawal.AccountNumber[^4..] : "****");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to send withdrawal success email for withdrawal {WithdrawalId}", withdrawal.Id);
+                        }
+                    }
                 }
                 else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
                 {
@@ -1103,6 +1144,24 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                         ReferenceId = withdrawal.Id,
                         ReferenceType = "withdrawal"
                     });
+
+                    // Send email notification
+                    if (!string.IsNullOrEmpty(influencerEmail))
+                    {
+                        try
+                        {
+                            await _emailService.SendWithdrawalFailedAsync(
+                                influencerEmail,
+                                influencerName,
+                                withdrawal.AmountInPence,
+                                withdrawal.Currency,
+                                withdrawal.FailureReason);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogWarning(ex, "Failed to send withdrawal failure email for withdrawal {WithdrawalId}", withdrawal.Id);
+                        }
+                    }
                 }
             }
 

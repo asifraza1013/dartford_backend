@@ -278,6 +278,20 @@ public class TrueLayerGateway : IPaymentGateway
                 _logger.LogInformation("TrueLayer webhook signature present, verification would be performed");
             }
 
+            // First, try to parse as a generic webhook to determine the type
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            var webhookType = root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : null;
+
+            _logger.LogInformation("TrueLayer webhook type: {Type}", webhookType);
+
+            // Check if this is a payout webhook
+            if (webhookType?.StartsWith("payout_") == true)
+            {
+                return Task.FromResult(ProcessPayoutWebhook(payload));
+            }
+
+            // Otherwise, process as payment webhook
             var webhookEvent = JsonSerializer.Deserialize<TrueLayerWebhookEvent>(payload, new JsonSerializerOptions
             {
                 PropertyNameCaseInsensitive = true

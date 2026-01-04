@@ -29,6 +29,13 @@ public class WithdrawalRepository : IWithdrawalRepository
             .FirstOrDefaultAsync(w => w.PaystackTransferCode == transferCode);
     }
 
+    public async Task<Withdrawal?> GetByTrueLayerPayoutIdAsync(string payoutId)
+    {
+        return await _context.Withdrawals
+            .Include(w => w.Influencer)
+            .FirstOrDefaultAsync(w => w.TrueLayerPayoutId == payoutId);
+    }
+
     public async Task<List<Withdrawal>> GetByInfluencerIdAsync(int influencerId)
     {
         return await _context.Withdrawals

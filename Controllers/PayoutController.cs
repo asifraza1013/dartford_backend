@@ -1303,10 +1303,13 @@ public class PayoutController : ControllerBase
             CreatedAt = DateTime.UtcNow
         };
 
+        _logger.LogInformation("Creating bank account: Gateway={Gateway}, AccountNumberFull={AccountNumberFull}, AccountNumberLast4={AccountNumberLast4}",
+            gateway, bankAccount.AccountNumberFull ?? "(null)", bankAccount.AccountNumberLast4);
+
         await _bankAccountRepo.CreateAsync(bankAccount);
 
-        _logger.LogInformation("Bank account added for user {UserId} via {Gateway}",
-            userId, gateway);
+        _logger.LogInformation("Bank account added for user {UserId} via {Gateway}, Id={BankAccountId}",
+            userId, gateway, bankAccount.Id);
 
         return Ok(new
         {

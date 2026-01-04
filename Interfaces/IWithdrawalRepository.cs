@@ -7,6 +7,7 @@ public interface IWithdrawalRepository
 {
     Task<Withdrawal?> GetByIdAsync(int id);
     Task<Withdrawal?> GetByTransferCodeAsync(string transferCode);
+    Task<Withdrawal?> GetByTrueLayerPayoutIdAsync(string payoutId);
     Task<List<Withdrawal>> GetByInfluencerIdAsync(int influencerId);
     Task<(List<Withdrawal> Items, int TotalCount)> GetByInfluencerIdFilteredAsync(int influencerId, PaymentFilterDto filter);
     Task<List<Withdrawal>> GetPendingWithdrawalsAsync();

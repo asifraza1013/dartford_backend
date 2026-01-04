@@ -72,6 +72,7 @@ public class MilestonePaymentBackgroundService : BackgroundService
             var campaigns = await campaignRepo.GetAllWithAutoPay();
             var processedCount = 0;
             var errorCount = 0;
+            var reminderCount = 0;
 
             foreach (var campaign in campaigns)
             {
@@ -89,33 +90,75 @@ public class MilestonePaymentBackgroundService : BackgroundService
                     if (!dueMilestones.Any())
                         continue;
 
-                    // Get the brand's default payment method
+                    // Determine brand's currency based on location
+                    var brand = await userRepo.GetById(campaign.BrandId);
+                    var brandLocation = brand?.Location?.ToUpper() ?? "NG";
+                    var isUKBrand = brandLocation == "GB" || brandLocation == "UK";
+
+                    // For UK brands (TrueLayer/GBP): Send payment reminder instead of auto-charging
+                    // TrueLayer is Open Banking and requires user authentication for each payment (SCA)
+                    if (isUKBrand)
+                    {
+                        foreach (var milestone in dueMilestones)
+                        {
+                            var formattedAmount = FormatAmount(milestone.AmountInPence, "GBP");
+                            await notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                            {
+                                UserId = campaign.BrandId,
+                                Type = NotificationType.Payment,
+                                Title = milestone.Status == (int)MilestoneStatus.OVERDUE
+                                    ? "Overdue Payment Reminder"
+                                    : "Payment Due Today",
+                                Message = $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for campaign \"{campaign.ProjectName}\" is due. " +
+                                    "Please complete the payment through your dashboard.",
+                                ReferenceId = campaign.Id,
+                                ReferenceType = "campaign"
+                            });
+                            reminderCount++;
+                        }
+                        _logger.LogInformation("Sent {Count} payment reminders to UK brand {BrandId} for campaign {CampaignId}",
+                            dueMilestones.Count, campaign.BrandId, campaign.Id);
+                        continue;
+                    }
+
+                    // For Nigerian brands (Paystack/NGN): Auto-charge using saved card
+                    // Get the brand's default payment method (Paystack authorization)
                     var paymentMethods = await paymentMethodRepo.GetByUserIdAsync(campaign.BrandId);
                     var defaultPaymentMethod = paymentMethods
-                        .Where(pm => pm.IsReusable && !string.IsNullOrEmpty(pm.AuthorizationCode))
+                        .Where(pm => pm.Gateway == "paystack" &&
+                                    pm.IsReusable &&
+                                    !string.IsNullOrEmpty(pm.AuthorizationCode))
                         .OrderByDescending(pm => pm.IsDefault)
                         .ThenByDescending(pm => pm.CreatedAt)
                         .FirstOrDefault();
 
                     if (defaultPaymentMethod == null)
                     {
-                        _logger.LogWarning("No saved payment method for brand {BrandId} - skipping auto-payment for campaign {CampaignId}",
+                        _logger.LogWarning("No saved Paystack payment method for brand {BrandId} - sending reminder for campaign {CampaignId}",
                             campaign.BrandId, campaign.Id);
 
-                        // Notify brand to add payment method
-                        await notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                        // Notify brand to add payment method or pay manually
+                        foreach (var milestone in dueMilestones)
                         {
-                            UserId = campaign.BrandId,
-                            Type = NotificationType.Payment,
-                            Title = "Payment Method Required",
-                            Message = $"Auto-payment for campaign \"{campaign.ProjectName}\" failed because no payment method is saved. Please add a payment method.",
-                            ReferenceId = campaign.Id,
-                            ReferenceType = "campaign"
-                        });
+                            var formattedAmount = FormatAmount(milestone.AmountInPence, "NGN");
+                            await notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                            {
+                                UserId = campaign.BrandId,
+                                Type = NotificationType.Payment,
+                                Title = milestone.Status == (int)MilestoneStatus.OVERDUE
+                                    ? "Overdue Payment - Action Required"
+                                    : "Payment Due - Save Card for Auto-Pay",
+                                Message = $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for campaign \"{campaign.ProjectName}\" is due. " +
+                                    "Save your card to enable automatic payments, or pay manually through your dashboard.",
+                                ReferenceId = campaign.Id,
+                                ReferenceType = "campaign"
+                            });
+                            reminderCount++;
+                        }
                         continue;
                     }
 
-                    // Process each due milestone
+                    // Process each due milestone with Paystack auto-charge
                     foreach (var milestone in dueMilestones)
                     {
                         try
@@ -133,7 +176,6 @@ public class MilestonePaymentBackgroundService : BackgroundService
                                 _logger.LogInformation("Successfully auto-paid milestone {MilestoneId}", milestone.Id);
 
                                 // Notify brand of successful payment
-                                var brand = await userRepo.GetById(campaign.BrandId);
                                 await notificationService.CreateNotificationAsync(new CreateNotificationRequest
                                 {
                                     UserId = campaign.BrandId,
@@ -178,13 +220,24 @@ public class MilestonePaymentBackgroundService : BackgroundService
                 }
             }
 
-            _logger.LogInformation("Milestone auto-payment check completed. Processed: {Processed}, Errors: {Errors}",
-                processedCount, errorCount);
+            _logger.LogInformation("Milestone auto-payment check completed. Processed: {Processed}, Errors: {Errors}, Reminders: {Reminders}",
+                processedCount, errorCount, reminderCount);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during milestone auto-payment processing");
         }
+    }
+
+    private static string FormatAmount(long amountInPence, string currency)
+    {
+        var amount = amountInPence / 100.0m;
+        return currency.ToUpper() switch
+        {
+            "GBP" => $"£{amount:N2}",
+            "NGN" => $"₦{amount:N2}",
+            _ => $"{currency} {amount:N2}"
+        };
     }
 
     public override void Dispose()

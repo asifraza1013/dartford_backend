@@ -151,14 +151,27 @@ public class PayoutController : ControllerBase
     public async Task<IActionResult> GetPendingBalance()
     {
         var userId = GetCurrentUserId();
+
+        // Get user's currency based on location
+        var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
         // Get all unpaid milestones for this influencer's campaigns
         var unpaidMilestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(userId);
-        var totalPending = unpaidMilestones.Sum(m => m.AmountInPence);
+
+        // Filter milestones by the user's currency (based on campaign/transaction currency)
+        var filteredMilestones = unpaidMilestones.Where(m =>
+        {
+            // Get the campaign's currency (from the brand's location or transaction)
+            var campaignCurrency = m.Campaign?.Currency ?? userCurrency;
+            return campaignCurrency == userCurrency;
+        }).ToList();
+
+        var totalPending = filteredMilestones.Sum(m => m.AmountInPence);
 
         return Ok(new
         {
             pendingAmountInPence = totalPending,
-            currency = CurrencyConstants.PrimaryCurrency
+            currency = userCurrency
         });
     }
 
@@ -169,12 +182,17 @@ public class PayoutController : ControllerBase
     public async Task<IActionResult> GetReleasedBalance()
     {
         var userId = GetCurrentUserId();
-        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId);
+
+        // Get user's currency based on location
+        var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        // Filter by currency
+        var totalReleased = await _payoutRepo.GetTotalReleasedByInfluencerIdAsync(userId, userCurrency);
 
         return Ok(new
         {
             releasedAmountInPence = totalReleased,
-            currency = CurrencyConstants.PrimaryCurrency
+            currency = userCurrency
         });
     }
 
@@ -222,6 +240,9 @@ public class PayoutController : ControllerBase
         var userId = GetCurrentUserId();
         var milestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(userId);
 
+        // Get user's currency based on location
+        var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
         return Ok(milestones.Select(m => new
         {
             m.Id,
@@ -231,6 +252,7 @@ public class PayoutController : ControllerBase
             m.MilestoneNumber,
             m.AmountInPence,
             m.PlatformFeeInPence,
+            currency = m.Campaign?.Currency ?? userCurrency,
             m.DueDate,
             m.Status,
             statusText = GetMilestoneStatusText(m.Status),

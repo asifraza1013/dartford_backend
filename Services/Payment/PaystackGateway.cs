@@ -178,6 +178,13 @@ public class PaystackGateway : IPaymentGateway
             if (webhookEvent?.Event == "charge.success" && webhookEvent.Data != null)
             {
                 var data = webhookEvent.Data;
+
+                _logger.LogInformation("Paystack charge.success webhook - Authorization: {AuthCode}, Reusable: {Reusable}, Card: {CardType} **** {Last4}",
+                    data.Authorization?.AuthorizationCode,
+                    data.Authorization?.Reusable,
+                    data.Authorization?.CardType,
+                    data.Authorization?.Last4);
+
                 return new WebhookProcessResult
                 {
                     Success = true,
@@ -415,13 +422,16 @@ public class PaystackGateway : IPaymentGateway
         public string? AuthorizationCode { get; set; }
         [JsonPropertyName("card_type")]
         public string? CardType { get; set; }
+        [JsonPropertyName("last4")]
         public string? Last4 { get; set; }
         [JsonPropertyName("exp_month")]
         public string? ExpMonth { get; set; }
         [JsonPropertyName("exp_year")]
         public string? ExpYear { get; set; }
+        [JsonPropertyName("bank")]
         public string? Bank { get; set; }
-        public bool Reusable { get; set; }
+        [JsonPropertyName("reusable")]
+        public bool Reusable { get; set; } = true; // Default to true, Paystack cards are typically reusable
     }
 
     private class PaystackWebhookEvent

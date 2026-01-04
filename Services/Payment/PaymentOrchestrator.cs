@@ -383,6 +383,9 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         // Save payment method if card was saved (Paystack)
         if (!string.IsNullOrEmpty(result.AuthorizationCode) && result.Card != null)
         {
+            _logger.LogInformation("Processing card save - AuthCode: {AuthCode}, Card.Reusable: {Reusable}",
+                result.AuthorizationCode, result.Card.Reusable);
+
             var existingMethod = await _paymentMethodRepo.GetByAuthorizationCodeAsync(result.AuthorizationCode);
             if (existingMethod == null)
             {
@@ -400,8 +403,13 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                     IsReusable = result.Card.Reusable // Mark as reusable for auto-pay
                 };
                 await _paymentMethodRepo.CreateAsync(paymentMethod);
-                _logger.LogInformation("Saved payment method for user {UserId}: {CardType} **** {Last4}, Reusable: {IsReusable}",
-                    transaction.UserId, result.Card.CardType, result.Card.Last4, result.Card.Reusable);
+                _logger.LogInformation("Saved payment method for user {UserId}: {CardType} **** {Last4}, IsReusable set to: {IsReusable}",
+                    transaction.UserId, result.Card.CardType, result.Card.Last4, paymentMethod.IsReusable);
+            }
+            else
+            {
+                _logger.LogInformation("Payment method already exists for AuthCode: {AuthCode}, existing IsReusable: {IsReusable}",
+                    result.AuthorizationCode, existingMethod.IsReusable);
             }
         }
 

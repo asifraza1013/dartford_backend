@@ -580,7 +580,9 @@ public class TrueLayerGateway : IPaymentGateway
             await EnsureAccessTokenAsync();
 
             var merchantAccountId = await GetMerchantAccountIdAsync();
-            var idempotencyKey = request.Reference;
+            // Generate a unique idempotency key for each payout attempt
+            // TrueLayer requires unique keys - if a payout fails with a key, you cannot reuse it
+            var idempotencyKey = $"{request.Reference}-{DateTime.UtcNow:yyyyMMddHHmmssfff}";
 
             // Build the open-loop payout request with inline beneficiary details
             // Per TrueLayer docs: https://docs.truelayer.com/docs/make-a-payout-to-an-external-account

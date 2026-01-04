@@ -58,6 +58,16 @@ public interface IPaymentOrchestrator
     /// Verify payment by gateway payment ID and process if successful
     /// </summary>
     Task<PaymentVerificationResult> VerifyPaymentByGatewayIdAsync(string gatewayPaymentId);
+
+    /// <summary>
+    /// Manually trigger auto-pay processing (for testing)
+    /// </summary>
+    Task<AutoPayProcessingResult> TriggerAutoPayProcessingAsync(int? campaignId = null);
+
+    /// <summary>
+    /// Manually trigger auto-withdrawal for a milestone (for testing)
+    /// </summary>
+    Task<AutoWithdrawalResult> TriggerAutoWithdrawalAsync(int milestoneId);
 }
 
 public class BrandOutstandingBalanceDto
@@ -109,4 +119,21 @@ public class CampaignPaymentSummary
     public int PaidMilestones { get; set; }
     public int PendingMilestones { get; set; }
     public PaymentMilestone? NextDueMilestone { get; set; }
+}
+
+public class AutoPayProcessingResult
+{
+    public int ProcessedCount { get; set; }
+    public int ErrorCount { get; set; }
+    public int ReminderCount { get; set; }
+    public List<string> Details { get; set; } = new();
+}
+
+public class AutoWithdrawalResult
+{
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+    public int? WithdrawalId { get; set; }
+    public string? Gateway { get; set; }
+    public string? Status { get; set; }
 }

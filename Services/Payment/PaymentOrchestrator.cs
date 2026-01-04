@@ -1224,4 +1224,278 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             };
         }
     }
+
+    public async Task<AutoPayProcessingResult> TriggerAutoPayProcessingAsync(int? campaignId = null)
+    {
+        var result = new AutoPayProcessingResult();
+
+        try
+        {
+            _logger.LogInformation("Manual auto-pay processing triggered. CampaignId filter: {CampaignId}", campaignId);
+
+            // Get campaigns with auto-pay enabled
+            IEnumerable<Campaign> campaigns;
+            if (campaignId.HasValue)
+            {
+                var campaign = await _campaignRepo.GetById(campaignId.Value);
+                campaigns = campaign != null ? new[] { campaign } : Array.Empty<Campaign>();
+            }
+            else
+            {
+                campaigns = await _campaignRepo.GetAllWithAutoPay();
+            }
+
+            foreach (var campaign in campaigns)
+            {
+                try
+                {
+                    // Get due milestones for this campaign
+                    var milestones = await _milestoneRepo.GetByCampaignIdAsync(campaign.Id);
+                    var dueMilestones = milestones
+                        .Where(m => m.Status == (int)MilestoneStatus.PENDING ||
+                                   m.Status == (int)MilestoneStatus.OVERDUE)
+                        .Where(m => m.DueDate <= DateTime.UtcNow)
+                        .OrderBy(m => m.DueDate)
+                        .ToList();
+
+                    if (!dueMilestones.Any())
+                    {
+                        result.Details.Add($"Campaign {campaign.Id} ({campaign.ProjectName}): No due milestones");
+                        continue;
+                    }
+
+                    // Determine brand's currency based on location
+                    var brand = await _userRepo.GetById(campaign.BrandId);
+                    var brandLocation = brand?.Location?.ToUpper() ?? "NG";
+                    var isUKBrand = brandLocation == "GB" || brandLocation == "UK";
+
+                    // For UK brands (TrueLayer/GBP): Send payment reminder instead of auto-charging
+                    if (isUKBrand)
+                    {
+                        foreach (var milestone in dueMilestones)
+                        {
+                            var formattedAmount = FormatAmount(milestone.AmountInPence, "GBP");
+                            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                            {
+                                UserId = campaign.BrandId,
+                                Type = NotificationType.Payment,
+                                Title = milestone.Status == (int)MilestoneStatus.OVERDUE
+                                    ? "Overdue Payment Reminder"
+                                    : "Payment Due Today",
+                                Message = $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for campaign \"{campaign.ProjectName}\" is due. " +
+                                    "Please complete the payment through your dashboard.",
+                                ReferenceId = campaign.Id,
+                                ReferenceType = "campaign"
+                            });
+                            result.ReminderCount++;
+                        }
+                        result.Details.Add($"Campaign {campaign.Id} ({campaign.ProjectName}): Sent {dueMilestones.Count} reminders to UK brand");
+                        continue;
+                    }
+
+                    // For Nigerian brands (Paystack/NGN): Auto-charge using saved card
+                    var paymentMethods = await _paymentMethodRepo.GetByUserIdAsync(campaign.BrandId);
+                    var defaultPaymentMethod = paymentMethods
+                        .Where(pm => pm.Gateway == "paystack" &&
+                                    pm.IsReusable &&
+                                    !string.IsNullOrEmpty(pm.AuthorizationCode))
+                        .OrderByDescending(pm => pm.IsDefault)
+                        .ThenByDescending(pm => pm.CreatedAt)
+                        .FirstOrDefault();
+
+                    if (defaultPaymentMethod == null)
+                    {
+                        foreach (var milestone in dueMilestones)
+                        {
+                            var formattedAmount = FormatAmount(milestone.AmountInPence, "NGN");
+                            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+                            {
+                                UserId = campaign.BrandId,
+                                Type = NotificationType.Payment,
+                                Title = milestone.Status == (int)MilestoneStatus.OVERDUE
+                                    ? "Overdue Payment - Action Required"
+                                    : "Payment Due - Save Card for Auto-Pay",
+                                Message = $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for campaign \"{campaign.ProjectName}\" is due. " +
+                                    "Save your card to enable automatic payments, or pay manually through your dashboard.",
+                                ReferenceId = campaign.Id,
+                                ReferenceType = "campaign"
+                            });
+                            result.ReminderCount++;
+                        }
+                        result.Details.Add($"Campaign {campaign.Id}: No saved card - sent {dueMilestones.Count} reminders");
+                        continue;
+                    }
+
+                    // Process each due milestone with Paystack auto-charge
+                    foreach (var milestone in dueMilestones)
+                    {
+                        try
+                        {
+                            var chargeResult = await ChargeRecurringPaymentAsync(
+                                milestone.Id,
+                                defaultPaymentMethod.Id);
+
+                            if (chargeResult.Success)
+                            {
+                                result.ProcessedCount++;
+                                result.Details.Add($"Campaign {campaign.Id}, Milestone {milestone.MilestoneNumber}: Payment successful");
+                            }
+                            else
+                            {
+                                result.ErrorCount++;
+                                result.Details.Add($"Campaign {campaign.Id}, Milestone {milestone.MilestoneNumber}: Failed - {chargeResult.ErrorMessage}");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            result.ErrorCount++;
+                            result.Details.Add($"Campaign {campaign.Id}, Milestone {milestone.MilestoneNumber}: Error - {ex.Message}");
+                        }
+
+                        // Add delay between payments to avoid rate limiting
+                        await Task.Delay(2000);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    result.ErrorCount++;
+                    result.Details.Add($"Campaign {campaign.Id}: Error - {ex.Message}");
+                }
+            }
+
+            _logger.LogInformation("Manual auto-pay completed. Processed: {Processed}, Errors: {Errors}, Reminders: {Reminders}",
+                result.ProcessedCount, result.ErrorCount, result.ReminderCount);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during manual auto-pay processing");
+            result.Details.Add($"Fatal error: {ex.Message}");
+        }
+
+        return result;
+    }
+
+    public async Task<AutoWithdrawalResult> TriggerAutoWithdrawalAsync(int milestoneId)
+    {
+        try
+        {
+            var milestone = await _milestoneRepo.GetByIdAsync(milestoneId);
+            if (milestone == null)
+            {
+                return new AutoWithdrawalResult
+                {
+                    Success = false,
+                    Message = "Milestone not found"
+                };
+            }
+
+            if (milestone.Status != (int)MilestoneStatus.PAID)
+            {
+                return new AutoWithdrawalResult
+                {
+                    Success = false,
+                    Message = "Milestone is not in PAID status"
+                };
+            }
+
+            var campaign = await _campaignRepo.GetById(milestone.CampaignId);
+            if (campaign == null)
+            {
+                return new AutoWithdrawalResult
+                {
+                    Success = false,
+                    Message = "Campaign not found"
+                };
+            }
+
+            // Get the transaction for this milestone
+            var transaction = milestone.TransactionId.HasValue
+                ? await _transactionRepo.GetTransactionByIdAsync(milestone.TransactionId.Value)
+                : null;
+
+            var currency = transaction?.Currency ?? campaign.Currency ?? "NGN";
+
+            // Get influencer's bank account
+            var bankAccount = await _bankAccountRepo.GetDefaultByInfluencerIdAndCurrencyAsync(campaign.InfluencerId, currency);
+            if (bankAccount == null)
+            {
+                return new AutoWithdrawalResult
+                {
+                    Success = false,
+                    Message = $"No bank account found for influencer with currency {currency}"
+                };
+            }
+
+            // Calculate the net amount (after platform fee)
+            var influencerFeePercent = await _settingsService.GetInfluencerPlatformFeePercentAsync();
+            var grossAmount = milestone.AmountInPence;
+            var platformFee = (long)(grossAmount * influencerFeePercent / 100);
+            var netAmount = grossAmount - platformFee;
+
+            // Create withdrawal record
+            var withdrawal = new Withdrawal
+            {
+                InfluencerId = campaign.InfluencerId,
+                AmountInPence = netAmount,
+                Currency = currency,
+                PaymentGateway = bankAccount.PaymentGateway,
+                BankName = bankAccount.BankName,
+                BankCode = bankAccount.BankCode,
+                AccountNumber = bankAccount.AccountNumberLast4,
+                AccountName = bankAccount.AccountName,
+                Status = (int)WithdrawalStatus.PROCESSING,
+                CreatedAt = DateTime.UtcNow,
+                ProcessedAt = DateTime.UtcNow
+            };
+
+            // Route to appropriate gateway
+            if (currency == "GBP" && bankAccount.PaymentGateway == "truelayer")
+            {
+                await ProcessAutoWithdrawalTrueLayer(withdrawal, bankAccount);
+            }
+            else if (currency == "NGN" && bankAccount.PaymentGateway == "paystack")
+            {
+                await ProcessAutoWithdrawalPaystack(withdrawal, bankAccount);
+            }
+            else
+            {
+                return new AutoWithdrawalResult
+                {
+                    Success = false,
+                    Message = $"Unsupported currency/gateway combination: {currency}/{bankAccount.PaymentGateway}"
+                };
+            }
+
+            await _withdrawalRepo.CreateAsync(withdrawal);
+
+            var statusText = withdrawal.Status switch
+            {
+                (int)WithdrawalStatus.COMPLETED => "completed",
+                (int)WithdrawalStatus.PROCESSING => "processing",
+                (int)WithdrawalStatus.FAILED => "failed",
+                (int)WithdrawalStatus.PENDING => "pending",
+                _ => "unknown"
+            };
+
+            return new AutoWithdrawalResult
+            {
+                Success = withdrawal.Status != (int)WithdrawalStatus.FAILED,
+                Message = withdrawal.Status == (int)WithdrawalStatus.FAILED
+                    ? $"Withdrawal failed: {withdrawal.FailureReason}"
+                    : $"Withdrawal initiated successfully ({statusText})",
+                WithdrawalId = withdrawal.Id,
+                Gateway = bankAccount.PaymentGateway,
+                Status = statusText
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error triggering auto-withdrawal for milestone {MilestoneId}", milestoneId);
+            return new AutoWithdrawalResult
+            {
+                Success = false,
+                Message = $"Error: {ex.Message}"
+            };
+        }
+    }
 }

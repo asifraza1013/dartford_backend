@@ -620,6 +620,67 @@ public class PaymentModuleController : ControllerBase
             return BadRequest(new { message = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Manually trigger auto-pay processing for testing purposes
+    /// This endpoint allows manual testing of the auto-pay background service
+    /// </summary>
+    [HttpPost("trigger-autopay")]
+    [Authorize]
+    public async Task<IActionResult> TriggerAutoPay([FromQuery] int? campaignId = null)
+    {
+        try
+        {
+            _logger.LogInformation("Manual auto-pay trigger requested by user {UserId}, CampaignId: {CampaignId}",
+                GetCurrentUserId(), campaignId);
+
+            var result = await _paymentOrchestrator.TriggerAutoPayProcessingAsync(campaignId);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Auto-pay processing completed",
+                processedCount = result.ProcessedCount,
+                errorCount = result.ErrorCount,
+                reminderCount = result.ReminderCount,
+                details = result.Details
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during manual auto-pay trigger");
+            return BadRequest(new { success = false, message = $"Error: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Manually trigger auto-withdrawal for an influencer (for testing)
+    /// </summary>
+    [HttpPost("trigger-auto-withdrawal/{milestoneId}")]
+    [Authorize]
+    public async Task<IActionResult> TriggerAutoWithdrawal(int milestoneId)
+    {
+        try
+        {
+            _logger.LogInformation("Manual auto-withdrawal trigger requested for milestone {MilestoneId}", milestoneId);
+
+            var result = await _paymentOrchestrator.TriggerAutoWithdrawalAsync(milestoneId);
+
+            return Ok(new
+            {
+                success = result.Success,
+                message = result.Message,
+                withdrawalId = result.WithdrawalId,
+                gateway = result.Gateway,
+                status = result.Status
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during manual auto-withdrawal trigger");
+            return BadRequest(new { success = false, message = $"Error: {ex.Message}" });
+        }
+    }
 }
 
 // DTOs

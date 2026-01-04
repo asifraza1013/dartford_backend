@@ -674,25 +674,29 @@ public class PaymentOrchestrator : IPaymentOrchestrator
 
     private async Task ProcessAutoWithdrawalTrueLayer(Withdrawal withdrawal, InfluencerBankAccount bankAccount)
     {
-        // TrueLayer requires sort code and account number which we don't store (only last 4)
-        // For TrueLayer auto-payouts, we need to use the beneficiary ID if available
-        if (string.IsNullOrEmpty(bankAccount.TrueLayerBeneficiaryId))
+        // TrueLayer requires sort code and full account number for open-loop payouts
+        // Check if we have the full account details stored
+        if (string.IsNullOrEmpty(bankAccount.AccountNumberFull) || string.IsNullOrEmpty(bankAccount.BankCode))
         {
-            // Without stored full bank details or beneficiary ID, we can't auto-withdraw for GBP
-            // Mark as processing and the influencer will need to manually confirm
+            // Without stored full bank details, we can't auto-withdraw for GBP
+            // Mark as pending and the influencer will need to manually request withdrawal
             withdrawal.Status = (int)WithdrawalStatus.PENDING;
-            withdrawal.FailureReason = "GBP auto-withdrawal requires bank account verification. Please manually request withdrawal.";
-            _logger.LogWarning("Auto-withdrawal for GBP skipped: No TrueLayer beneficiary ID for influencer bank account {BankAccountId}",
+            withdrawal.FailureReason = "GBP auto-withdrawal requires complete bank account details. Please manually request withdrawal or re-add your bank account.";
+            _logger.LogWarning("Auto-withdrawal for GBP skipped: Missing full account details for influencer bank account {BankAccountId}",
                 bankAccount.Id);
             return;
         }
 
-        var payoutReference = $"AUTO-TL-{DateTime.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        var payoutReference = $"AUTO-TL-{DateTime.UtcNow:yyyyMMddHH}";
+
+        // Use open-loop payout with full bank account details
         var payoutResult = await _trueLayerGateway.InitiatePayoutAsync(new TrueLayerPayoutRequest
         {
             AmountInPence = withdrawal.AmountInPence,
             Reference = payoutReference,
-            ExternalAccountId = bankAccount.TrueLayerBeneficiaryId
+            SortCode = bankAccount.BankCode,
+            AccountNumber = bankAccount.AccountNumberFull,
+            AccountName = bankAccount.AccountName
         });
 
         if (!payoutResult.Success)

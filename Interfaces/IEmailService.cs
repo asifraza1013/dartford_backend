@@ -36,4 +36,24 @@ public interface IEmailService
     /// Sends email notification to brand requesting contract revision after influencer rejection
     /// </summary>
     Task SendContractRevisionRequestAsync(string brandEmail, string brandName, int campaignId, string projectName, string? reason = null);
+
+    /// <summary>
+    /// Sends email notification to influencer when withdrawal is successful
+    /// </summary>
+    Task SendWithdrawalSuccessAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string bankName, string accountNumberLast4);
+
+    /// <summary>
+    /// Sends email notification to influencer when withdrawal fails
+    /// </summary>
+    Task SendWithdrawalFailedAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string? failureReason);
+
+    /// <summary>
+    /// Sends email notification to influencer when withdrawal is processing
+    /// </summary>
+    Task SendWithdrawalProcessingAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string bankName, string accountNumberLast4);
+
+    /// <summary>
+    /// Sends email notification to influencer when a milestone payment is released to their balance
+    /// </summary>
+    Task SendPaymentReleasedAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string campaignName, int milestoneNumber);
 }

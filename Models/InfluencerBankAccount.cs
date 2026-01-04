@@ -11,6 +11,10 @@ public class InfluencerBankAccount
     public string AccountNumberLast4 { get; set; } = ""; // Only last 4 digits for security
     public string AccountName { get; set; } = "";
 
+    // Full account number for payouts (encrypted/hashed - only used for TrueLayer open-loop payouts)
+    // For Paystack (NGN), we use the recipient code instead
+    public string? AccountNumberFull { get; set; }
+
     // Currency and gateway for this bank account
     public string Currency { get; set; } = "NGN";
     public string PaymentGateway { get; set; } = "paystack"; // "paystack" or "truelayer"

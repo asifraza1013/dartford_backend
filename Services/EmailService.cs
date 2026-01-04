@@ -608,4 +608,251 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(brandEmail, subject, body);
     }
+
+    private string GetCurrencySymbol(string currency)
+    {
+        return currency.ToUpper() switch
+        {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "NGN" => "₦",
+            _ => currency
+        };
+    }
+
+    private string FormatAmountFromPence(long amountInPence, string currency)
+    {
+        var symbol = GetCurrencySymbol(currency);
+        var amount = amountInPence / 100.0m;
+        return $"{symbol}{amount:N2}";
+    }
+
+    public async Task SendWithdrawalSuccessAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string bankName, string accountNumberLast4)
+    {
+        var subject = "Withdrawal Successful";
+        var formattedAmount = FormatAmountFromPence(amountInPence, currency);
+
+        var content = $@"
+            <div style=""background-color: #F0FDF4; border-left: 4px solid #10B981; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    ✅ Withdrawal Completed
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    Your withdrawal has been successfully processed and sent to your bank account.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #10B981; font-family: 'Inter', Arial, sans-serif;"">{formattedAmount}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Bank</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{bankName}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Account</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">****{accountNumberLast4}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                The funds should appear in your bank account within 1-3 business days depending on your bank. You can view your withdrawal history in your dashboard.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/earnings";
+        var body = GetEmailTemplate(
+            "Withdrawal Successful",
+            $"Dear {influencerName},",
+            content,
+            "View Earnings",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
+    public async Task SendWithdrawalFailedAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string? failureReason)
+    {
+        var subject = "Withdrawal Failed";
+        var formattedAmount = FormatAmountFromPence(amountInPence, currency);
+
+        var reasonSection = !string.IsNullOrEmpty(failureReason)
+            ? $@"
+                <div style=""background-color: #FEF3F2; border-left: 4px solid #F04438; padding: 16px; border-radius: 8px; margin: 20px 0;"">
+                    <p style=""margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                        Reason:
+                    </p>
+                    <p style=""margin: 0; font-size: 14px; line-height: 1.5; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                        {failureReason}
+                    </p>
+                </div>"
+            : "";
+
+        var content = $@"
+            <div style=""background-color: #FEF3F2; border-left: 4px solid #F04438; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    ❌ Withdrawal Failed
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    Unfortunately, your withdrawal could not be processed.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #F04438; font-family: 'Inter', Arial, sans-serif;"">{formattedAmount}</p>
+                    </td>
+                </tr>
+            </table>
+
+            {reasonSection}
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                The amount has been returned to your available balance. Please check your bank account details and try again. If the issue persists, please contact our support team.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/settings/bank-accounts";
+        var body = GetEmailTemplate(
+            "Withdrawal Failed",
+            $"Dear {influencerName},",
+            content,
+            "Check Bank Details",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
+    public async Task SendWithdrawalProcessingAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string bankName, string accountNumberLast4)
+    {
+        var subject = "Withdrawal Processing";
+        var formattedAmount = FormatAmountFromPence(amountInPence, currency);
+
+        var content = $@"
+            <div style=""background-color: #F0F7FF; border-left: 4px solid #3B71FE; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    ⏳ Withdrawal In Progress
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    Your withdrawal request has been received and is being processed.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #3B71FE; font-family: 'Inter', Arial, sans-serif;"">{formattedAmount}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Bank</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{bankName}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Account</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">****{accountNumberLast4}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                We'll send you another email once the withdrawal is complete. This usually takes 1-3 business days depending on your bank.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/earnings";
+        var body = GetEmailTemplate(
+            "Withdrawal Processing",
+            $"Dear {influencerName},",
+            content,
+            "View Earnings",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
+    public async Task SendPaymentReleasedAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string campaignName, int milestoneNumber)
+    {
+        var subject = $"Payment Released: {campaignName}";
+        var formattedAmount = FormatAmountFromPence(amountInPence, currency);
+
+        var content = $@"
+            <div style=""background-color: #F0FDF4; border-left: 4px solid #10B981; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    💰 Payment Released!
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    Great news! A milestone payment has been released to your available balance.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #10B981; font-family: 'Inter', Arial, sans-serif;"">{formattedAmount}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{campaignName}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 12px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Milestone</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">Milestone {milestoneNumber}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                This payment is now available in your balance and ready for withdrawal. Visit your earnings page to withdraw funds to your bank account.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/earnings";
+        var body = GetEmailTemplate(
+            "Payment Released",
+            $"Dear {influencerName},",
+            content,
+            "Withdraw Funds",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
 }

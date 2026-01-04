@@ -26,6 +26,7 @@ public class PayoutController : ControllerBase
     private readonly IInfluencerBankAccountRepository _bankAccountRepo;
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepo;
+    private readonly IEmailService _emailService;
     private readonly ILogger<PayoutController> _logger;
 
     public PayoutController(
@@ -40,6 +41,7 @@ public class PayoutController : ControllerBase
         IInfluencerBankAccountRepository bankAccountRepo,
         INotificationService notificationService,
         IUserRepository userRepo,
+        IEmailService emailService,
         ILogger<PayoutController> logger)
     {
         _payoutRepo = payoutRepo;
@@ -53,6 +55,7 @@ public class PayoutController : ControllerBase
         _bankAccountRepo = bankAccountRepo;
         _notificationService = notificationService;
         _userRepo = userRepo;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -586,6 +589,11 @@ public class PayoutController : ControllerBase
 
         await _withdrawalRepo.UpdateAsync(withdrawal);
 
+        // Get user details for email notifications
+        var user = await _userRepo.GetById(userId);
+        var influencerName = user?.Name ?? "Influencer";
+        var influencerEmail = user?.Email ?? "";
+
         // Send notification to influencer about withdrawal status
         var formattedAmount = FormatAmount(withdrawal.AmountInPence, withdrawal.Currency);
         if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
@@ -599,6 +607,25 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for successful withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalSuccessAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal success email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
         else if (withdrawal.Status == (int)WithdrawalStatus.PROCESSING)
         {
@@ -615,6 +642,25 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for processing withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalProcessingAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal processing email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
         else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
         {
@@ -627,6 +673,24 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for failed withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalFailedAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        withdrawal.FailureReason);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal failure email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
 
         var responseMessage = withdrawal.Status switch
@@ -821,6 +885,11 @@ public class PayoutController : ControllerBase
 
         await _withdrawalRepo.UpdateAsync(withdrawal);
 
+        // Get user details for email notifications
+        var user = await _userRepo.GetById(userId);
+        var influencerName = user?.Name ?? "Influencer";
+        var influencerEmail = user?.Email ?? "";
+
         // Send notification to influencer about withdrawal status
         var formattedAmount = FormatAmount(withdrawal.AmountInPence, withdrawal.Currency);
         if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
@@ -834,6 +903,25 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for successful withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalSuccessAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal success email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
         else if (withdrawal.Status == (int)WithdrawalStatus.PROCESSING)
         {
@@ -846,6 +934,25 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for processing withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalProcessingAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal processing email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
         else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
         {
@@ -858,6 +965,24 @@ public class PayoutController : ControllerBase
                 ReferenceId = withdrawal.Id,
                 ReferenceType = "withdrawal"
             });
+
+            // Send email notification for failed withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalFailedAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        withdrawal.FailureReason);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal failure email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
         }
 
         var responseMessage = withdrawal.Status switch
@@ -1157,7 +1282,9 @@ public class PayoutController : ControllerBase
         var existingAccounts = await _bankAccountRepo.GetByInfluencerIdAsync(userId);
         var isFirstAccount = !existingAccounts.Any();
 
-        // Store only reference, not full account number
+        // Store bank account details
+        // For TrueLayer (GBP), we need the full account number for open-loop payouts
+        // For Paystack (NGN), we use the recipient code instead
         var bankAccount = new InfluencerBankAccount
         {
             InfluencerId = userId,
@@ -1166,6 +1293,7 @@ public class PayoutController : ControllerBase
             AccountNumberLast4 = request.AccountNumber.Length >= 4
                 ? request.AccountNumber[^4..]
                 : request.AccountNumber,
+            AccountNumberFull = gateway == "truelayer" ? request.AccountNumber : null, // Store full number only for TrueLayer
             AccountName = request.AccountName,
             Currency = userCurrency,
             PaymentGateway = gateway,

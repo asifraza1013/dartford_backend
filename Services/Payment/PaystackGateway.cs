@@ -132,7 +132,8 @@ public class PaystackGateway : IPaymentGateway
                         Last4 = data.Authorization.Last4,
                         ExpiryMonth = data.Authorization.ExpMonth,
                         ExpiryYear = data.Authorization.ExpYear,
-                        Bank = data.Authorization.Bank
+                        Bank = data.Authorization.Bank,
+                        Reusable = data.Authorization.Reusable
                     } : null
                 };
             }
@@ -190,7 +191,8 @@ public class PaystackGateway : IPaymentGateway
                         Last4 = data.Authorization.Last4,
                         ExpiryMonth = data.Authorization.ExpMonth,
                         ExpiryYear = data.Authorization.ExpYear,
-                        Bank = data.Authorization.Bank
+                        Bank = data.Authorization.Bank,
+                        Reusable = data.Authorization.Reusable
                     } : null
                 };
             }

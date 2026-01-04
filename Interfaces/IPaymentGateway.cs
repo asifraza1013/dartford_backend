@@ -87,6 +87,7 @@ public class CardDetails
     public string? ExpiryMonth { get; set; }
     public string? ExpiryYear { get; set; }
     public string? Bank { get; set; }
+    public bool Reusable { get; set; } = true; // Default to true for Paystack cards
 }
 
 public class WebhookProcessResult

@@ -396,9 +396,12 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                     ExpiryMonth = result.Card.ExpiryMonth,
                     ExpiryYear = result.Card.ExpiryYear,
                     Bank = result.Card.Bank,
-                    IsDefault = true
+                    IsDefault = true,
+                    IsReusable = result.Card.Reusable // Mark as reusable for auto-pay
                 };
                 await _paymentMethodRepo.CreateAsync(paymentMethod);
+                _logger.LogInformation("Saved payment method for user {UserId}: {CardType} **** {Last4}, Reusable: {IsReusable}",
+                    transaction.UserId, result.Card.CardType, result.Card.Last4, result.Card.Reusable);
             }
         }
 

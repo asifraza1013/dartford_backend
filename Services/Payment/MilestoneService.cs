@@ -291,20 +291,28 @@ public class MilestoneService : IMilestoneService
         if (campaign == null)
             throw new ArgumentException($"Campaign {campaignId} not found");
 
-        // If enabling auto-pay, verify the brand has a saved payment method
+        // If enabling auto-pay, verify the brand has a reusable payment method
         if (isAutoPayEnabled)
         {
             // Get the brand user ID from the campaign if not provided
             var userId = brandUserId ?? campaign.BrandId;
 
             var paymentMethods = await _paymentMethodRepo.GetByUserIdAsync(userId);
-            if (paymentMethods == null || !paymentMethods.Any())
+
+            // Check for a reusable card that can be used for auto-pay
+            var reusableCard = paymentMethods?
+                .Where(pm => pm.Gateway == "paystack" &&
+                            pm.IsReusable &&
+                            !string.IsNullOrEmpty(pm.AuthorizationCode))
+                .FirstOrDefault();
+
+            if (reusableCard == null)
             {
                 throw new InvalidOperationException("Cannot enable auto-pay without a saved payment method. Please save a card first by paying a milestone.");
             }
 
-            _logger.LogInformation("Brand {UserId} has {Count} saved payment methods, allowing auto-pay",
-                userId, paymentMethods.Count);
+            _logger.LogInformation("Brand {UserId} has reusable card **** {Last4}, allowing auto-pay",
+                userId, reusableCard.Last4);
         }
 
         campaign.PaymentType = paymentType;

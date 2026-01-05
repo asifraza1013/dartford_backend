@@ -732,12 +732,7 @@ public class PayoutController : ControllerBase
         // Check if using saved bank account or one-time details
         if (request.BankAccountId.HasValue)
         {
-            // Use saved bank account - we need to retrieve the full account details
-            // Note: For security, we only store last 4 digits in the database
-            // For saved accounts, we need to get the full account number from a secure source
-            // In this implementation, we require users to provide full details for each withdrawal
-            // or use a pre-verified account through TrueLayer's closed-loop system
-
+            // Use saved bank account
             var savedAccount = await _bankAccountRepo.GetByIdAsync(request.BankAccountId.Value);
             if (savedAccount == null)
             {
@@ -749,28 +744,45 @@ public class PayoutController : ControllerBase
                 return Forbid();
             }
 
-            // For saved accounts, we need the user to provide the full account number again for security
-            // The saved account only stores last 4 digits and sort code
-            if (string.IsNullOrWhiteSpace(request.AccountNumber))
+            // Check if we have the full account number stored (added after migration)
+            if (!string.IsNullOrEmpty(savedAccount.AccountNumberFull))
             {
-                return BadRequest(new { message = "Please provide your full account number to verify the withdrawal" });
+                // Use stored full account number
+                bankName = savedAccount.BankName;
+                sortCode = savedAccount.BankCode; // For UK accounts, BankCode stores the sort code
+                accountNumber = savedAccount.AccountNumberFull;
+                accountNumberLast4 = savedAccount.AccountNumberLast4;
+                accountName = savedAccount.AccountName;
             }
-
-            // Verify the provided account number matches the saved account (last 4 digits)
-            var providedLast4 = request.AccountNumber.Length >= 4
-                ? request.AccountNumber[^4..]
-                : request.AccountNumber;
-
-            if (providedLast4 != savedAccount.AccountNumberLast4)
+            else
             {
-                return BadRequest(new { message = "Account number doesn't match saved bank account" });
-            }
+                // Legacy account - need user to provide full account number
+                if (string.IsNullOrWhiteSpace(request.AccountNumber))
+                {
+                    return BadRequest(new { message = "Please provide your full account number to verify the withdrawal. This is required for accounts added before the update." });
+                }
 
-            bankName = savedAccount.BankName;
-            sortCode = savedAccount.BankCode; // For UK accounts, BankCode stores the sort code
-            accountNumber = request.AccountNumber;
-            accountNumberLast4 = savedAccount.AccountNumberLast4;
-            accountName = savedAccount.AccountName;
+                // Verify the provided account number matches the saved account (last 4 digits)
+                var providedLast4 = request.AccountNumber.Length >= 4
+                    ? request.AccountNumber[^4..]
+                    : request.AccountNumber;
+
+                if (providedLast4 != savedAccount.AccountNumberLast4)
+                {
+                    return BadRequest(new { message = "Account number doesn't match saved bank account" });
+                }
+
+                // Update the saved account with the full account number for future withdrawals
+                savedAccount.AccountNumberFull = request.AccountNumber;
+                await _bankAccountRepo.UpdateAsync(savedAccount);
+                _logger.LogInformation("Updated legacy bank account {BankAccountId} with full account number", savedAccount.Id);
+
+                bankName = savedAccount.BankName;
+                sortCode = savedAccount.BankCode;
+                accountNumber = request.AccountNumber;
+                accountNumberLast4 = savedAccount.AccountNumberLast4;
+                accountName = savedAccount.AccountName;
+            }
         }
         else
         {

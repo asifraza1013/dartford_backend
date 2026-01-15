@@ -41,17 +41,46 @@ public class MilestonePaymentBackgroundService : BackgroundService
         _logger.LogInformation("Milestone auto-payment background service is starting");
 
         // Run immediately on startup, then run daily
-        await ProcessDueMilestonesAsync();
+        try
+        {
+            await ProcessDueMilestonesAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during initial milestone auto-payment processing");
+        }
 
         // Set up daily timer
         _timer = new Timer(
-            async _ => await ProcessDueMilestonesAsync(),
+            _ =>
+            {
+                // Fire and forget - run in background without blocking
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await ProcessDueMilestonesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error in timer-triggered milestone processing");
+                    }
+                });
+            },
             null,
             TimeSpan.FromHours(_config.IntervalHours),
             TimeSpan.FromHours(_config.IntervalHours)
         );
 
-        await Task.Delay(Timeout.Infinite, stoppingToken);
+        // Keep the service running
+        try
+        {
+            await Task.Delay(Timeout.Infinite, stoppingToken);
+        }
+        catch (TaskCanceledException)
+        {
+            _logger.LogInformation("Milestone auto-payment background service is stopping");
+        }
     }
 
     private async Task ProcessDueMilestonesAsync()

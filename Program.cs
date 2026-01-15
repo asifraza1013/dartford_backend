@@ -19,7 +19,7 @@ namespace inflan_api
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
 
@@ -184,13 +184,30 @@ namespace inflan_api
                     }
                 };
             });
-            
+
+            // Add authorization policies
+            builder.Services.AddAuthorization(options =>
+            {
+                options.AddPolicy("AdminOnly", policy =>
+                    policy.RequireClaim("UserType", "1"));
+            });
+
             builder.Services.AddSwaggerGen(c => {
                 c.SwaggerDoc("v1", new OpenApiInfo
                 {
                     Title = "Inflan Web Api",
-                    Version = "v1"
+                    Version = "v1",
+                    Description = "API for Dartford Backend - Influencer Marketing Platform"
                 });
+
+                // Enable XML comments for Swagger documentation
+                var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+                var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+                if (File.Exists(xmlPath))
+                {
+                    c.IncludeXmlComments(xmlPath);
+                }
+
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
                 {
                     Name = "Authorization",
@@ -236,6 +253,19 @@ namespace inflan_api
 
 
             var app = builder.Build();
+
+            // Seed admin user
+            using (var scope = app.Services.CreateScope())
+            {
+                try
+                {
+                    await inflan_api.Data.DatabaseSeeder.SeedAsync(scope.ServiceProvider);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error seeding database: {ex.Message}");
+                }
+            }
 
             // Skip auto-migration - migrations are already applied and auto-migrate causes issues
             // Run migrations manually with: dotnet ef database update

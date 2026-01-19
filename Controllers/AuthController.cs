@@ -133,9 +133,16 @@ namespace inflan_api.Controllers
         {
             User? user = await _userService.ValidateUserAsync(login.Email, login.Password);
             if (user == null)
-                return StatusCode(401, new { 
+                return StatusCode(401, new {
                     message = MessageHelper.GetMessageText(Message.INVALID_EMAIL_PASSWORD),
-                    code = MessageHelper.GetMessageCode(Message.INVALID_EMAIL_PASSWORD) 
+                    code = MessageHelper.GetMessageCode(Message.INVALID_EMAIL_PASSWORD)
+                });
+
+            // Check if user is suspended (status = 2 means INACTIVE/SUSPENDED)
+            if (user.Status == 2)
+                return StatusCode(403, new {
+                    message = "Your account has been suspended. Please contact support.",
+                    code = "ACCOUNT_SUSPENDED"
                 });
 
             var token = _authService.GenerateJwtToken(user);

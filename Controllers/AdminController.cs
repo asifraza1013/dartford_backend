@@ -667,14 +667,28 @@ namespace inflan_api.Controllers
                 var totalCount = await query.CountAsync();
                 var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
 
-                var campaigns = await query
+                // Get all plan IDs from campaigns
+                var planIds = await query.Select(c => c.PlanId).Distinct().ToListAsync();
+                var plans = await _context.Plans
+                    .Where(p => planIds.Contains(p.Id))
+                    .ToListAsync();
+
+                var campaignsList = await query
                     .OrderByDescending(c => c.CreatedAt)
                     .Skip((page - 1) * pageSize)
                     .Take(pageSize)
-                    .Select(c => new AdminCampaignListDto
+                    .ToListAsync();
+
+                var campaigns = campaignsList.Select(c =>
+                {
+                    var plan = plans.FirstOrDefault(p => p.Id == c.PlanId);
+                    return new AdminCampaignListDto
                     {
                         Id = c.Id,
                         ProjectName = c.ProjectName,
+                        Description = c.AboutProject,
+                        StartDate = c.CampaignStartDate,
+                        EndDate = c.CampaignEndDate,
                         BrandId = c.BrandId,
                         BrandName = c.Brand != null ? c.Brand.Name ?? "Unknown" : "Unknown",
                         InfluencerId = c.InfluencerId,
@@ -687,10 +701,22 @@ namespace inflan_api.Controllers
                         TotalAmount = c.TotalAmountInPence / 100m,
                         PaidAmount = c.PaidAmountInPence / 100m,
                         Currency = c.Currency ?? "GBP",
+                        Plan = plan != null ? new PlanInfoDto
+                        {
+                            Id = plan.Id,
+                            PlanName = plan.PlanName,
+                            Currency = plan.Currency,
+                            Interval = plan.Interval,
+                            Price = plan.Price,
+                            NumberOfMonths = plan.NumberOfMonths
+                        } : null,
+                        ContentFiles = c.ContentFiles,
+                        InstructionDocuments = c.InstructionDocuments,
+                        SignedContractPdfPath = c.SignedContractPdfPath,
                         CreatedAt = c.CreatedAt,
-                        CompletedAt = null // Campaign model doesn't have this field
-                    })
-                    .ToListAsync();
+                        CompletedAt = c.PaymentCompletedAt
+                    };
+                }).ToList();
 
                 var response = new PaginatedResponseDto<AdminCampaignListDto>
                 {

@@ -69,6 +69,9 @@ namespace inflan_api.DTOs
     {
         public int Id { get; set; }
         public string ProjectName { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public DateOnly StartDate { get; set; }
+        public DateOnly EndDate { get; set; }
         public int BrandId { get; set; }
         public string BrandName { get; set; } = string.Empty;
         public int? InfluencerId { get; set; }
@@ -81,8 +84,22 @@ namespace inflan_api.DTOs
         public decimal TotalAmount { get; set; }
         public decimal PaidAmount { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public PlanInfoDto? Plan { get; set; }
+        public List<string>? ContentFiles { get; set; }
+        public List<string>? InstructionDocuments { get; set; }
+        public string? SignedContractPdfPath { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
+    }
+
+    public class PlanInfoDto
+    {
+        public int Id { get; set; }
+        public string? PlanName { get; set; }
+        public string? Currency { get; set; }
+        public string? Interval { get; set; }
+        public float Price { get; set; }
+        public int NumberOfMonths { get; set; }
     }
 
     public class AdminCampaignSummaryDto

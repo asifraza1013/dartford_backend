@@ -17,17 +17,29 @@ ssh -o StrictHostKeyChecking=no -i "$KEY_PATH" ec2-user@18.171.165.48 << 'EOF'
 
 echo "📦 Deploying latest changes..."
 
-# Stop existing processes
-echo "Stopping current API..."
-pkill -f dotnet || true
-sleep 5
-
-# Force kill if still running
-pkill -9 -f dotnet 2>/dev/null || true
-sleep 2
-
 # Navigate to the CORRECT directory (inflat-api-server is the active one)
 cd /home/ec2-user/inflat-api-server
+
+# Stop existing processes more reliably
+echo "Stopping current API..."
+pkill -f "dotnet.*inflan_api.dll" || true
+sleep 3
+
+# Force kill if still running
+pkill -9 -f "dotnet.*inflan_api.dll" 2>/dev/null || true
+sleep 2
+
+# Kill any process holding port 8080
+echo "Ensuring port 8080 is free..."
+fuser -k 8080/tcp 2>/dev/null || true
+sleep 2
+
+# Verify no dotnet processes are running
+if pgrep -f "dotnet.*inflan_api.dll" > /dev/null; then
+    echo "WARNING: Dotnet processes still running, force killing all..."
+    pkill -9 -f dotnet 2>/dev/null || true
+    sleep 3
+fi
 
 # Pull latest code
 echo "Pulling latest code from master..."
@@ -42,23 +54,46 @@ dotnet build -c Release
 echo "Running database migrations..."
 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet ef database update
 
+# Clear old logs
+echo "Clearing old logs..."
+> app.log
+
 # Start application in Production mode with ALL required environment variables
 # Note: Using sh -c to ensure environment variables are passed correctly to dotnet
 echo "Starting API in Production mode with database connection..."
 nohup sh -c 'PORT=8080 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet run --environment Production' > app.log 2>&1 &
 
+# Store the process ID
+NEW_PID=$!
+echo "Started new process with PID: $NEW_PID"
+
 # Wait for API to fully start
-echo "Waiting for API to start (30 seconds)..."
-sleep 30
+echo "Waiting for API to start (checking every 5 seconds, max 60 seconds)..."
+for i in {1..12}; do
+    sleep 5
+    if grep -q "Application started" app.log 2>/dev/null || netstat -tuln | grep -q ":8080 "; then
+        echo "✓ API started successfully after $((i*5)) seconds"
+        break
+    fi
+    if grep -q "Failed to bind" app.log 2>/dev/null; then
+        echo "✗ ERROR: Failed to bind to port 8080"
+        tail -20 app.log
+        exit 1
+    fi
+    echo "Still waiting... ($i/12)"
+done
 
 # Kill any duplicate process on port 10000 (sometimes dotnet spawns a second process)
 echo "Cleaning up any duplicate processes..."
 pkill -9 -f "urls=http://0.0.0.0:10000" 2>/dev/null || true
 sleep 2
 
-# Check what port API is actually running on
-API_PORT=$(tail -10 app.log | grep "Now listening" | grep -o '[0-9]*' | tail -1)
-echo "API is listening on port: $API_PORT"
+# Verify the correct process is running
+if ps -p $NEW_PID > /dev/null; then
+    echo "✓ Process $NEW_PID is running"
+else
+    echo "✗ WARNING: Process $NEW_PID is not running!"
+fi
 
 # Test API locally
 echo ""

@@ -43,7 +43,7 @@ namespace inflan_api.Controllers
 
             // Enrich with influencer data
             var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
-            var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+            var influencerRecord = await _influencerService.GetInfluencerBasicByUserId(campaign.InfluencerId);
             var plan = await _planService.GetPlanById(campaign.PlanId);
 
             var enrichedCampaign = new DTOs.CampaignResponseDto
@@ -162,7 +162,7 @@ namespace inflan_api.Controllers
             {
                 var brandUser = await _userService.GetUserById(campaign.BrandId);
                 var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
-                var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+                var influencerRecord = await _influencerService.GetInfluencerBasicByUserId(campaign.InfluencerId);
                 var plan = await _planService.GetPlanById(campaign.PlanId);
 
                 enrichedCampaigns.Add(new DTOs.CampaignResponseDto
@@ -240,7 +240,7 @@ namespace inflan_api.Controllers
             {
                 var brandUser = await _userService.GetUserById(campaign.BrandId);
                 var influencerUser = await _userService.GetUserById(campaign.InfluencerId);
-                var influencerRecord = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+                var influencerRecord = await _influencerService.GetInfluencerBasicByUserId(campaign.InfluencerId);
                 var plan = await _planService.GetPlanById(campaign.PlanId);
 
                 enrichedCampaigns.Add(new DTOs.CampaignResponseDto

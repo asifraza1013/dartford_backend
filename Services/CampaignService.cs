@@ -263,7 +263,7 @@ public class CampaignService : ICampaignService
         // Get related data for PDF generation
         var brand = await _userService.GetUserById(campaign.BrandId);
         var influencer = await _userService.GetUserById(campaign.InfluencerId);
-        var influencerProfile = await _influencerService.GetInfluencerByUserId(campaign.InfluencerId);
+        var influencerProfile = await _influencerService.GetInfluencerBasicByUserId(campaign.InfluencerId);
         var plan = await _planService.GetPlanById(campaign.PlanId);
 
         if (brand == null || influencer == null || plan == null)

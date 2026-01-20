@@ -70,13 +70,13 @@ namespace inflan_api.Controllers
             });
         }
 
-        [HttpGet("getInfluencerById/{id}")]
-        public async Task<IActionResult> GetInfluencerById(int id)
+        [HttpGet("getInfluencerById/{userId}")]
+        public async Task<IActionResult> GetInfluencerById(int userId)
         {
-            var influencer = await _influencerService.GetInfluencerById(id);
-            return influencer != null ? Ok(influencer) : StatusCode(404, new { 
+            var influencer = await _influencerService.GetInfluencerByUserId(userId);
+            return influencer != null ? Ok(influencer) : StatusCode(404, new {
                 message = "Influencer not found",
-                code = Message.INFLUENCER_NOT_FOUND 
+                code = Message.INFLUENCER_NOT_FOUND
             });
         }
 
@@ -352,7 +352,7 @@ namespace inflan_api.Controllers
         [HttpDelete("deleteInfluencer/{userId}")]
         public async Task<IActionResult> DeleteInfluencer(int userId)
         {
-            Influencer influencer = await _influencerService.GetInfluencerByUserId(userId);
+            Influencer influencer = await _influencerService.GetInfluencerBasicByUserId(userId);
             if(influencer == null)
                 return StatusCode(400, new { message = Message.INFLUENCER_NOT_FOUND });
                 

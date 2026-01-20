@@ -6,6 +6,7 @@ namespace inflan_api.Interfaces
     {
         Task<IEnumerable<InfluencerUserModel>> GetAll();
         Task<InfluencerUserModel?> GetById(int id);
+        Task<InfluencerUserModel?> GetByUserIdWithDetails(int userId);
         Task<Influencer> Create(Influencer influencer);
         Task Update(Influencer influencer);
         Task Delete(int id);

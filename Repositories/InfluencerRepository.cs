@@ -93,6 +93,46 @@ namespace inflan_api.Repositories
                 }).FirstOrDefaultAsync();
 
         }
+
+        private async Task<InfluencerUserModel?> getExplicitInfluencerByUserId(int userId)
+        {
+            return await (from i in _context.Influencers
+                join u in _context.Users on i.UserId equals u.Id
+                where u.Id == userId
+                select new InfluencerUserModel
+                {
+                    Id = i.Id,
+                    UserId = i.UserId,
+                    YouTube = i.YouTube,
+                    Instagram = i.Instagram,
+                    Facebook = i.Facebook,
+                    TikTok = i.TikTok,
+                    YouTubeFollower = i.YouTubeFollower,
+                    InstagramFollower = i.InstagramFollower,
+                    FacebookFollower = i.FacebookFollower,
+                    TikTokFollower = i.TikTokFollower,
+                    Bio = i.Bio,
+
+                    User = new User
+                    {
+                        Id = u.Id,
+                        Name = u.Name,
+                        UserName = u.UserName,
+                        Email = u.Email,
+                        Password = u.Password,
+                        BrandName = u.BrandName,
+                        BrandCategory = u.BrandCategory,
+                        BrandSector = u.BrandSector,
+                        Goals = u.Goals,
+                        UserType = u.UserType,
+                        ProfileImage = u.ProfileImage,
+                        Status = u.Status,
+                        Currency = u.Currency,
+                        Location = u.Location
+                    }
+                }).FirstOrDefaultAsync();
+        }
+
         public async Task<IEnumerable<InfluencerUserModel>> GetAll()
         {
             return await getExplicitInfluencers();
@@ -101,6 +141,11 @@ namespace inflan_api.Repositories
         public async Task<InfluencerUserModel?> GetById(int id)
         {
             return await getExplicitInfluencer(id);
+        }
+
+        public async Task<InfluencerUserModel?> GetByUserIdWithDetails(int userId)
+        {
+            return await getExplicitInfluencerByUserId(userId);
         }
 
         public async Task<Influencer> Create(Influencer influencer)

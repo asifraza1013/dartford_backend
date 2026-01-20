@@ -77,7 +77,7 @@ namespace inflan_api.Controllers
             }
             else if (user.UserType == (int)UserType.INFLUENCER)
             {
-                var influencer = await _influencerService.GetInfluencerByUserId(user.Id);
+                var influencer = await _influencerService.GetInfluencerBasicByUserId(user.Id);
                 if (influencer == null)
                 {
                     return StatusCode(200, new

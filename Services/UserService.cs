@@ -115,7 +115,7 @@ namespace inflan_api.Services
                     if (hasSocialMediaUpdate || hasBioUpdate)
                     {
                         Console.WriteLine("Updating influencer data...");
-                        var existingInfluencer = await _influencerService.GetInfluencerByUserId(id);
+                        var existingInfluencer = await _influencerService.GetInfluencerBasicByUserId(id);
 
                         if (existingInfluencer == null)
                         {

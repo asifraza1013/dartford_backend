@@ -92,7 +92,7 @@ namespace inflan_api.Services
                     {
                         try
                         {
-                            var influencer = await influencerService.GetInfluencerByUserId(influencerModel.UserId);
+                            var influencer = await influencerService.GetInfluencerBasicByUserId(influencerModel.UserId);
                             if (influencer == null) continue;
 
                             // Get updated follower counts

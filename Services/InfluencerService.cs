@@ -258,6 +258,11 @@ namespace inflan_api.Services
             return await _influencerRepository.GetById(id);
         }
 
+        public async Task<InfluencerUserModel?> GetInfluencerByUserId(int userId)
+        {
+            return await _influencerRepository.GetByUserIdWithDetails(userId);
+        }
+
         public async Task<Influencer> CreateInfluencer(Influencer influencer)
         {
             return await _influencerRepository.Create(influencer);
@@ -297,7 +302,7 @@ namespace inflan_api.Services
             await _influencerRepository.Delete(id);
             return true;
         }
-        public async Task<Influencer?> GetInfluencerByUserId(int userId)
+        public async Task<Influencer?> GetInfluencerBasicByUserId(int userId)
         {
             return await _influencerRepository.GetByUserId(userId);
         }

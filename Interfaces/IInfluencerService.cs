@@ -7,10 +7,11 @@ namespace inflan_api.Interfaces
     {
         Task<IEnumerable<InfluencerUserModel>> GetAllInfluencers(string? searchQuery = null, string? followers = null, string? channels = null, string? location = null);
         Task<InfluencerUserModel?> GetInfluencerById(int id);
+        Task<InfluencerUserModel?> GetInfluencerByUserId(int userId);
+        Task<Influencer?> GetInfluencerBasicByUserId(int userId);
         Task<Influencer> CreateInfluencer(Influencer influencer);
         Task<bool> UpdateInfluencer(int userId, Influencer influencer);
         Task<bool> DeleteInfluencer(int id);
-        Task<Influencer?> GetInfluencerByUserId(int userId);
         Task<Influencer?> FindBySocialAccount(string? instagram, string? youtube, string? tiktok, string? facebook);
         int ParseFollowersFromYouTube(JsonElement json);
         int ParseFollowersFromTikTok(JsonElement json);

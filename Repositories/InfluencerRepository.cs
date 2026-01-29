@@ -18,6 +18,7 @@ namespace inflan_api.Repositories
         {
             return await (from i in _context.Influencers
                 join u in _context.Users on i.UserId equals u.Id
+                where u.Status == 1 // Only show ACTIVE influencers (exclude suspended)
                 select new InfluencerUserModel
                 {
                     Id = i.Id,
@@ -193,7 +194,7 @@ namespace inflan_api.Repositories
         {
             return await (from i in _context.Influencers
                 join u in _context.Users on i.UserId equals u.Id
-                where u.Location == location
+                where u.Location == location && u.Status == 1 // Only show ACTIVE influencers (exclude suspended)
                 select new InfluencerUserModel
                 {
                     Id = i.Id,

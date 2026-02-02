@@ -37,5 +37,12 @@ namespace inflan_api.Models
         /// </summary>
         public string? Location { get; set; } = "NG";
 
+        /// <summary>
+        /// Stripe Customer ID (cus_xxx) for UK-based users.
+        /// Used for storing payment methods and processing recurring payments.
+        /// </summary>
+        [MaxLength(255)]
+        public string? StripeCustomerId { get; set; }
+
     }
 }

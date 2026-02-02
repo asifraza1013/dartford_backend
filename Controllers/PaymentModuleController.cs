@@ -125,6 +125,27 @@ public class PaymentModuleController : ControllerBase
     }
 
     /// <summary>
+    /// Process Stripe webhook
+    /// </summary>
+    [HttpPost("webhook/stripe")]
+    public async Task<IActionResult> StripeWebhook()
+    {
+        using var reader = new StreamReader(Request.Body);
+        var payload = await reader.ReadToEndAsync();
+        var signature = Request.Headers["Stripe-Signature"].FirstOrDefault();
+
+        _logger.LogInformation("===== STRIPE WEBHOOK RECEIVED =====");
+        _logger.LogInformation("Signature present: {HasSignature}", !string.IsNullOrEmpty(signature));
+        _logger.LogInformation("Payload length: {Length}", payload?.Length ?? 0);
+
+        var success = await _paymentOrchestrator.ProcessWebhookAsync("stripe", payload, signature);
+
+        _logger.LogInformation("Webhook processing result: {Success}", success);
+
+        return success ? Ok() : BadRequest();
+    }
+
+    /// <summary>
     /// Get payment status
     /// </summary>
     [HttpGet("status/{transactionReference}")]

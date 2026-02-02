@@ -114,6 +114,7 @@ namespace inflan_api
             builder.Services.AddTransient<IMilestoneService, MilestoneService>();
             builder.Services.AddTransient<TrueLayerGateway>();
             builder.Services.AddTransient<PaystackGateway>();
+            builder.Services.AddTransient<StripeGateway>();
             builder.Services.AddTransient<IPaymentGatewayFactory, PaymentGatewayFactory>();
             builder.Services.AddTransient<IPaymentOrchestrator, PaymentOrchestrator>();
             builder.Services.AddTransient<IInvoicePdfService, InvoicePdfService>();

@@ -15,9 +15,23 @@ public class PaymentMethod
     [MaxLength(50)]
     public string Gateway { get; set; } = "paystack";
 
-    [Required]
+    /// <summary>
+    /// Authorization code for Paystack recurring payments (auth_xxx)
+    /// </summary>
     [MaxLength(255)]
-    public string AuthorizationCode { get; set; } = string.Empty;
+    public string? AuthorizationCode { get; set; }
+
+    /// <summary>
+    /// Stripe PaymentMethod ID for recurring payments (pm_xxx)
+    /// </summary>
+    [MaxLength(255)]
+    public string? StripePaymentMethodId { get; set; }
+
+    /// <summary>
+    /// Stripe Customer ID (cus_xxx)
+    /// </summary>
+    [MaxLength(255)]
+    public string? StripeCustomerId { get; set; }
 
     [MaxLength(50)]
     public string? CardType { get; set; }

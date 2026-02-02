@@ -24,6 +24,7 @@ public class PaymentGatewayFactory : IPaymentGatewayFactory
         {
             "truelayer" => _serviceProvider.GetRequiredService<TrueLayerGateway>(),
             "paystack" => _serviceProvider.GetRequiredService<PaystackGateway>(),
+            "stripe" => _serviceProvider.GetRequiredService<StripeGateway>(),
             _ => throw new ArgumentException($"Unknown payment gateway: {gatewayName}")
         };
     }
@@ -34,6 +35,7 @@ public class PaymentGatewayFactory : IPaymentGatewayFactory
         {
             Utils.PaymentGateway.TRUELAYER => _serviceProvider.GetRequiredService<TrueLayerGateway>(),
             Utils.PaymentGateway.PAYSTACK => _serviceProvider.GetRequiredService<PaystackGateway>(),
+            Utils.PaymentGateway.STRIPE => _serviceProvider.GetRequiredService<StripeGateway>(),
             _ => throw new ArgumentException($"Unknown payment gateway: {gateway}")
         };
     }

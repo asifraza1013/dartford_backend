@@ -119,57 +119,52 @@ public class MilestonePaymentBackgroundService : BackgroundService
                     if (!dueMilestones.Any())
                         continue;
 
-                    // Determine brand's currency based on location
+                    // Determine brand's location and payment gateway
                     var brand = await userRepo.GetById(campaign.BrandId);
                     var brandLocation = brand?.Location?.ToUpper() ?? "NG";
+                    var brandCurrency = brand?.Currency?.ToUpper() ?? "NGN";
                     var isUKBrand = brandLocation == "GB" || brandLocation == "UK";
+                    var gateway = isUKBrand ? "stripe" : "paystack";
 
-                    // For UK brands (TrueLayer/GBP): Send payment reminder instead of auto-charging
-                    // TrueLayer is Open Banking and requires user authentication for each payment (SCA)
+                    // Get the brand's payment methods
+                    var paymentMethods = await paymentMethodRepo.GetByUserIdAsync(campaign.BrandId);
+
+                    // Find appropriate payment method based on location
+                    PaymentMethod? defaultPaymentMethod = null;
+
                     if (isUKBrand)
                     {
-                        foreach (var milestone in dueMilestones)
-                        {
-                            var formattedAmount = FormatAmount(milestone.AmountInPence, "GBP");
-                            await notificationService.CreateNotificationAsync(new CreateNotificationRequest
-                            {
-                                UserId = campaign.BrandId,
-                                Type = NotificationType.Payment,
-                                Title = milestone.Status == (int)MilestoneStatus.OVERDUE
-                                    ? "Overdue Payment Reminder"
-                                    : "Payment Due Today",
-                                Message = $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for campaign \"{campaign.ProjectName}\" is due. " +
-                                    "Please complete the payment through your dashboard.",
-                                ReferenceId = campaign.Id,
-                                ReferenceType = "campaign"
-                            });
-                            reminderCount++;
-                        }
-                        _logger.LogInformation("Sent {Count} payment reminders to UK brand {BrandId} for campaign {CampaignId}",
-                            dueMilestones.Count, campaign.BrandId, campaign.Id);
-                        continue;
+                        // For UK brands: Look for Stripe payment method
+                        defaultPaymentMethod = paymentMethods
+                            .Where(pm => pm.Gateway == "stripe" &&
+                                        pm.IsReusable &&
+                                        !string.IsNullOrEmpty(pm.StripePaymentMethodId) &&
+                                        !string.IsNullOrEmpty(pm.StripeCustomerId))
+                            .OrderByDescending(pm => pm.IsDefault)
+                            .ThenByDescending(pm => pm.CreatedAt)
+                            .FirstOrDefault();
                     }
-
-                    // For Nigerian brands (Paystack/NGN): Auto-charge using saved card
-                    // Get the brand's default payment method (Paystack authorization)
-                    var paymentMethods = await paymentMethodRepo.GetByUserIdAsync(campaign.BrandId);
-                    var defaultPaymentMethod = paymentMethods
-                        .Where(pm => pm.Gateway == "paystack" &&
-                                    pm.IsReusable &&
-                                    !string.IsNullOrEmpty(pm.AuthorizationCode))
-                        .OrderByDescending(pm => pm.IsDefault)
-                        .ThenByDescending(pm => pm.CreatedAt)
-                        .FirstOrDefault();
+                    else
+                    {
+                        // For Nigerian brands: Look for Paystack payment method
+                        defaultPaymentMethod = paymentMethods
+                            .Where(pm => pm.Gateway == "paystack" &&
+                                        pm.IsReusable &&
+                                        !string.IsNullOrEmpty(pm.AuthorizationCode))
+                            .OrderByDescending(pm => pm.IsDefault)
+                            .ThenByDescending(pm => pm.CreatedAt)
+                            .FirstOrDefault();
+                    }
 
                     if (defaultPaymentMethod == null)
                     {
-                        _logger.LogWarning("No saved Paystack payment method for brand {BrandId} - sending reminder for campaign {CampaignId}",
-                            campaign.BrandId, campaign.Id);
+                        _logger.LogWarning("No saved {Gateway} payment method for brand {BrandId} - sending reminder for campaign {CampaignId}",
+                            gateway, campaign.BrandId, campaign.Id);
 
                         // Notify brand to add payment method or pay manually
                         foreach (var milestone in dueMilestones)
                         {
-                            var formattedAmount = FormatAmount(milestone.AmountInPence, "NGN");
+                            var formattedAmount = FormatAmount(milestone.AmountInPence, brandCurrency);
                             await notificationService.CreateNotificationAsync(new CreateNotificationRequest
                             {
                                 UserId = campaign.BrandId,
@@ -187,7 +182,7 @@ public class MilestonePaymentBackgroundService : BackgroundService
                         continue;
                     }
 
-                    // Process each due milestone with Paystack auto-charge
+                    // Process each due milestone with auto-charge (Stripe or Paystack)
                     foreach (var milestone in dueMilestones)
                     {
                         try

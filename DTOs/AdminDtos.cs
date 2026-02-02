@@ -136,6 +136,7 @@ namespace inflan_api.DTOs
         public decimal Amount { get; set; }
         public decimal Commission { get; set; }
         public string Currency { get; set; } = string.Empty;
+        public string PaymentGateway { get; set; } = string.Empty;
         public int Status { get; set; }
         public string StatusLabel { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }

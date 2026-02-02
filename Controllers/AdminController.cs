@@ -875,6 +875,7 @@ namespace inflan_api.Controllers
                         Amount = t.TotalAmountInPence / 100m,
                         Commission = t.PlatformFeeInPence / 100m,
                         Currency = t.Currency,
+                        PaymentGateway = t.Gateway,
                         Status = t.TransactionStatus,
                         StatusLabel = ((PaymentStatus)t.TransactionStatus).ToString(),
                         CreatedAt = t.CreatedAt,

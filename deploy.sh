@@ -63,18 +63,20 @@ echo "Clearing old logs..."
 echo "Starting API in Production mode with database connection..."
 nohup sh -c 'PORT=8080 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet run --environment Production' > app.log 2>&1 &
 
-# Store the process ID
-NEW_PID=$!
-echo "Started new process with PID: $NEW_PID"
-
-# Wait for API to fully start
+# Wait for API to fully start and find the actual dotnet process
 echo "Waiting for API to start (checking every 5 seconds, max 60 seconds)..."
+NEW_PID=""
 for i in {1..12}; do
     sleep 5
-    if grep -q "Application started" app.log 2>/dev/null || netstat -tuln | grep -q ":8080 "; then
-        echo "✓ API started successfully after $((i*5)) seconds"
+
+    # Try to find the actual dotnet process running inflan_api.dll
+    NEW_PID=$(pgrep -f "dotnet.*inflan_api.dll" | head -1)
+
+    if [ -n "$NEW_PID" ] && (grep -q "Application started" app.log 2>/dev/null || netstat -tuln | grep -q ":8080 "); then
+        echo "✓ API started successfully after $((i*5)) seconds with PID: $NEW_PID"
         break
     fi
+
     if grep -q "Failed to bind" app.log 2>/dev/null; then
         echo "✗ ERROR: Failed to bind to port 8080"
         tail -20 app.log
@@ -89,10 +91,14 @@ pkill -9 -f "urls=http://0.0.0.0:10000" 2>/dev/null || true
 sleep 2
 
 # Verify the correct process is running
-if ps -p $NEW_PID > /dev/null; then
-    echo "✓ Process $NEW_PID is running"
+if [ -n "$NEW_PID" ] && ps -p $NEW_PID > /dev/null 2>&1; then
+    echo "✓ Process $NEW_PID is running and verified"
+    echo "Process details:"
+    ps -p $NEW_PID -o pid,etime,cmd
 else
-    echo "✗ WARNING: Process $NEW_PID is not running!"
+    echo "✗ WARNING: Could not verify API process is running!"
+    echo "Checking all dotnet processes:"
+    ps aux | grep dotnet | grep -v grep
 fi
 
 # Test API locally

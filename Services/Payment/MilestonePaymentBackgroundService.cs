@@ -40,7 +40,7 @@ public class MilestonePaymentBackgroundService : BackgroundService
 
         _logger.LogInformation("Milestone auto-payment background service is starting");
 
-        // Run immediately on startup, then run daily
+        // Run immediately on startup
         try
         {
             await ProcessDueMilestonesAsync();
@@ -50,7 +50,14 @@ public class MilestonePaymentBackgroundService : BackgroundService
             _logger.LogError(ex, "Error during initial milestone auto-payment processing");
         }
 
-        // Set up daily timer
+        // Use configurable interval from settings
+        var intervalTimeSpan = TimeSpan.FromHours(_config.IntervalHours);
+        var nextRun = DateTime.UtcNow.Add(intervalTimeSpan);
+
+        _logger.LogInformation("Next auto-payment run scheduled for {NextRun} (in {Hours} hours, {Minutes} minutes)",
+            nextRun, intervalTimeSpan.TotalHours, intervalTimeSpan.TotalMinutes);
+
+        // Set up timer based on configured interval
         _timer = new Timer(
             _ =>
             {
@@ -68,8 +75,8 @@ public class MilestonePaymentBackgroundService : BackgroundService
                 });
             },
             null,
-            TimeSpan.FromHours(_config.IntervalHours),
-            TimeSpan.FromHours(_config.IntervalHours)
+            intervalTimeSpan, // First run after configured interval
+            intervalTimeSpan // Then repeat at the same interval
         );
 
         // Keep the service running
@@ -83,7 +90,7 @@ public class MilestonePaymentBackgroundService : BackgroundService
         }
     }
 
-    private async Task ProcessDueMilestonesAsync()
+    public async Task ProcessDueMilestonesAsync()
     {
         _logger.LogInformation("Starting milestone auto-payment check at {Time}", DateTime.UtcNow);
 
@@ -107,12 +114,13 @@ public class MilestonePaymentBackgroundService : BackgroundService
             {
                 try
                 {
-                    // Get due milestones for this campaign (pending milestones where due date has passed)
+                    // Get milestones due TODAY (pending milestones where due date is today)
                     var milestones = await milestoneRepo.GetByCampaignIdAsync(campaign.Id);
+                    var today = DateTime.UtcNow.Date;
                     var dueMilestones = milestones
                         .Where(m => m.Status == (int)MilestoneStatus.PENDING ||
                                    m.Status == (int)MilestoneStatus.OVERDUE)
-                        .Where(m => m.DueDate <= DateTime.UtcNow)
+                        .Where(m => m.DueDate.Date == today) // Only process milestones due TODAY
                         .OrderBy(m => m.DueDate)
                         .ToList();
 
@@ -283,7 +291,7 @@ public class MilestonePaymentConfig
     /// <summary>
     /// How often to check for due milestones (in hours)
     /// </summary>
-    public int IntervalHours { get; set; } = 24;
+    public double IntervalHours { get; set; } = 24;
 
     /// <summary>
     /// Delay between processing each payment to avoid rate limiting (in milliseconds)

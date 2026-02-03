@@ -70,8 +70,18 @@ namespace inflan_api.Controllers
             });
         }
 
-        [HttpGet("getInfluencerById/{userId}")]
-        public async Task<IActionResult> GetInfluencerById(int userId)
+        [HttpGet("getInfluencerById/{influencerId}")]
+        public async Task<IActionResult> GetInfluencerById(int influencerId)
+        {
+            var influencer = await _influencerService.GetInfluencerById(influencerId);
+            return influencer != null ? Ok(influencer) : StatusCode(404, new {
+                message = "Influencer not found",
+                code = Message.INFLUENCER_NOT_FOUND
+            });
+        }
+
+        [HttpGet("getInfluencerByUserId/{userId}")]
+        public async Task<IActionResult> GetInfluencerByUserId(int userId)
         {
             var influencer = await _influencerService.GetInfluencerByUserId(userId);
             return influencer != null ? Ok(influencer) : StatusCode(404, new {

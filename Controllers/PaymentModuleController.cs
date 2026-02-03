@@ -15,17 +15,20 @@ public class PaymentModuleController : ControllerBase
     private readonly IMilestoneService _milestoneService;
     private readonly IPaymentMethodRepository _paymentMethodRepo;
     private readonly ILogger<PaymentModuleController> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     public PaymentModuleController(
         IPaymentOrchestrator paymentOrchestrator,
         IMilestoneService milestoneService,
         IPaymentMethodRepository paymentMethodRepo,
-        ILogger<PaymentModuleController> logger)
+        ILogger<PaymentModuleController> logger,
+        IServiceProvider serviceProvider)
     {
         _paymentOrchestrator = paymentOrchestrator;
         _milestoneService = milestoneService;
         _paymentMethodRepo = paymentMethodRepo;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     private int GetCurrentUserId()
@@ -705,6 +708,45 @@ public class PaymentModuleController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error during manual auto-withdrawal trigger");
+            return BadRequest(new { success = false, message = $"Error: {ex.Message}" });
+        }
+    }
+
+    /// <summary>
+    /// Manually trigger milestone auto-payment processing (for testing/admin purposes)
+    /// </summary>
+    [HttpPost("trigger-auto-payments")]
+    [Authorize]
+    public async Task<IActionResult> TriggerAutoPayments()
+    {
+        var userId = GetCurrentUserId();
+        _logger.LogInformation("Manual auto-payment trigger requested by user {UserId}", userId);
+
+        try
+        {
+            // Get all hosted services
+            var hostedServices = _serviceProvider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
+            var backgroundService = hostedServices.OfType<Services.Payment.MilestonePaymentBackgroundService>().FirstOrDefault();
+
+            if (backgroundService == null)
+            {
+                return BadRequest(new { success = false, message = "Auto-payment service not available" });
+            }
+
+            // Trigger the processing
+            await backgroundService.ProcessDueMilestonesAsync();
+
+            _logger.LogInformation("Auto-payment processing completed");
+
+            return Ok(new
+            {
+                success = true,
+                message = "Auto-payment processing triggered successfully. Check logs for details."
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during manual auto-payment trigger");
             return BadRequest(new { success = false, message = $"Error: {ex.Message}" });
         }
     }

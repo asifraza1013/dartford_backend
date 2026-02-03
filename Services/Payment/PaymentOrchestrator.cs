@@ -139,10 +139,10 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             var currency = brand.Currency ?? CurrencyConstants.PrimaryCurrency;
 
             // Determine payment gateway based on currency
-            // GBP uses TrueLayer, NGN uses Paystack
+            // GBP uses Stripe, NGN uses Paystack
             var gatewayName = currency.ToUpper() switch
             {
-                "GBP" => "truelayer",
+                "GBP" => "stripe",
                 "NGN" => "paystack",
                 _ => request.Gateway // Use requested gateway if currency doesn't match
             };
@@ -394,6 +394,8 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                     UserId = transaction.UserId,
                     Gateway = transaction.Gateway,
                     AuthorizationCode = result.AuthorizationCode,
+                    StripePaymentMethodId = transaction.Gateway == "stripe" ? result.AuthorizationCode : null,
+                    StripeCustomerId = transaction.Gateway == "stripe" ? result.CustomerId : null,
                     CardType = result.Card.CardType,
                     Last4 = result.Card.Last4,
                     ExpiryMonth = result.Card.ExpiryMonth,
@@ -405,6 +407,19 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                 await _paymentMethodRepo.CreateAsync(paymentMethod);
                 _logger.LogInformation("Saved payment method for user {UserId}: {CardType} **** {Last4}, IsReusable set to: {IsReusable}",
                     transaction.UserId, result.Card.CardType, result.Card.Last4, paymentMethod.IsReusable);
+
+                // Save Stripe customer ID to User table for future reference
+                if (transaction.Gateway == "stripe" && !string.IsNullOrEmpty(result.CustomerId))
+                {
+                    var user = await _userRepo.GetById(transaction.UserId);
+                    if (user != null && string.IsNullOrEmpty(user.StripeCustomerId))
+                    {
+                        user.StripeCustomerId = result.CustomerId;
+                        await _userRepo.Update(user);
+                        _logger.LogInformation("Saved Stripe customer ID {CustomerId} for user {UserId}",
+                            result.CustomerId, transaction.UserId);
+                    }
+                }
             }
             else
             {
@@ -744,8 +759,12 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                 return new PaymentInitiationResponse { Success = false, ErrorMessage = "Milestone not found" };
 
             var paymentMethod = await _paymentMethodRepo.GetByIdAsync(paymentMethodId);
-            if (paymentMethod == null || paymentMethod.Gateway != "paystack")
+            if (paymentMethod == null)
                 return new PaymentInitiationResponse { Success = false, ErrorMessage = "Invalid payment method" };
+
+            // Support both Stripe and Paystack
+            if (paymentMethod.Gateway != "paystack" && paymentMethod.Gateway != "stripe")
+                return new PaymentInitiationResponse { Success = false, ErrorMessage = "Invalid payment gateway" };
 
             var campaign = await _campaignRepo.GetById(milestone.CampaignId);
             if (campaign == null)
@@ -763,7 +782,10 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             // Generate transaction reference
             var transactionRef = $"INF-REC-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpper()}";
 
-            // Create transaction record (Paystack uses NGN)
+            // Determine currency based on gateway
+            var currency = paymentMethod.Gateway == "stripe" ? (campaign.Currency ?? "GBP") : "NGN";
+
+            // Create transaction record
             var transaction = new Transaction
             {
                 TransactionReference = transactionRef,
@@ -773,8 +795,8 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                 AmountInPence = milestone.AmountInPence,
                 PlatformFeeInPence = platformFee,
                 TotalAmountInPence = totalAmount,
-                Currency = "NGN",
-                Gateway = "paystack",
+                Currency = currency,
+                Gateway = paymentMethod.Gateway,
                 PaymentMethodId = paymentMethodId,
                 TransactionStatus = (int)PaymentStatus.PROCESSING,
                 CreatedAt = DateTime.UtcNow
@@ -782,16 +804,25 @@ public class PaymentOrchestrator : IPaymentOrchestrator
 
             transaction = await _transactionRepo.CreateTransactionAsync(transaction);
 
-            // Charge authorization
-            var gateway = _gatewayFactory.GetGateway("paystack");
+            // Charge authorization based on gateway
+            var gateway = _gatewayFactory.GetGateway(paymentMethod.Gateway);
             var chargeRequest = new ChargeAuthorizationRequest
             {
-                AuthorizationCode = paymentMethod.AuthorizationCode,
+                AuthorizationCode = paymentMethod.Gateway == "stripe"
+                    ? paymentMethod.StripePaymentMethodId
+                    : paymentMethod.AuthorizationCode,
                 Email = paymentMethod.Email ?? brand.Email ?? "",
                 AmountInPence = totalAmount,
-                Currency = "NGN",
-                TransactionReference = transactionRef
+                Currency = currency,
+                TransactionReference = transactionRef,
+                Metadata = new Dictionary<string, string>()
             };
+
+            // Add Stripe Customer ID to metadata if using Stripe
+            if (paymentMethod.Gateway == "stripe" && !string.IsNullOrEmpty(paymentMethod.StripeCustomerId))
+            {
+                chargeRequest.Metadata["stripe_customer_id"] = paymentMethod.StripeCustomerId;
+            }
 
             var result = await gateway.ChargeAuthorizationAsync(chargeRequest);
 

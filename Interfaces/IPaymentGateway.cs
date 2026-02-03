@@ -66,7 +66,8 @@ public class PaymentStatusResult
     public string? Currency { get; set; }
     public DateTime? PaidAt { get; set; }
     public string? ErrorMessage { get; set; }
-    public string? AuthorizationCode { get; set; } // For Paystack - to save for recurring
+    public string? AuthorizationCode { get; set; } // For Paystack authorization code or Stripe payment method ID
+    public string? CustomerId { get; set; } // For Stripe customer ID
     public CardDetails? Card { get; set; }
 }
 
@@ -97,6 +98,7 @@ public class WebhookProcessResult
     public PaymentStatusType Status { get; set; }
     public string? ErrorMessage { get; set; }
     public string? AuthorizationCode { get; set; }
+    public string? CustomerId { get; set; } // For Stripe customer ID
     public CardDetails? Card { get; set; }
     public long? AmountInPence { get; set; }
     // For transfer events (withdrawals)

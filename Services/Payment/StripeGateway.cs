@@ -91,6 +91,12 @@ public class StripeGateway : IPaymentGateway
             };
 
             // Create checkout session options
+            // Add save_payment_method flag to metadata so we can check it in webhook
+            if (request.SavePaymentMethod)
+            {
+                metadata["save_payment_method"] = "true";
+            }
+
             var options = new SessionCreateOptions
             {
                 PaymentMethodTypes = new List<string> { "card" },
@@ -98,17 +104,30 @@ public class StripeGateway : IPaymentGateway
                 Mode = "payment",
                 SuccessUrl = $"{request.SuccessRedirectUrl ?? _successUrl}&session_id={{CHECKOUT_SESSION_ID}}",
                 CancelUrl = request.FailureRedirectUrl ?? _cancelUrl,
-                CustomerEmail = request.CustomerEmail,
                 ClientReferenceId = request.TransactionReference,
                 Metadata = metadata,
                 PaymentIntentData = new SessionPaymentIntentDataOptions
                 {
                     Description = request.Description,
                     Metadata = metadata,
-                    // Setup future usage if card saving is requested
+                    // Setup future usage if card saving is requested - this tells Stripe to save the payment method
                     SetupFutureUsage = request.SavePaymentMethod ? "off_session" : null
                 }
             };
+
+            // Configure customer for payment method saving
+            if (request.SavePaymentMethod)
+            {
+                // Stripe will create a customer automatically and attach the payment method
+                options.CustomerEmail = request.CustomerEmail;
+                options.CustomerCreation = "always"; // Always create a customer when saving payment method
+
+                _logger.LogInformation("Creating Stripe session with payment method saving enabled - Email: {Email}", request.CustomerEmail);
+            }
+            else
+            {
+                options.CustomerEmail = request.CustomerEmail;
+            }
 
             // Create the checkout session
             var session = await sessionService.CreateAsync(options);
@@ -400,19 +419,40 @@ public class StripeGateway : IPaymentGateway
         var transactionReference = session.Metadata.GetValueOrDefault("transaction_reference")
             ?? session.ClientReferenceId;
 
+        // Check if card should be saved based on metadata flag
+        var shouldSaveCard = session.Metadata.GetValueOrDefault("save_payment_method") == "true";
+
+        _logger.LogInformation("Webhook Debug - SessionId: {SessionId}, PaymentIntentId: {PaymentIntentId}, ShouldSaveCard: {ShouldSaveCard}, CustomerId: {CustomerId}, HasPaymentMethod: {HasPaymentMethod}",
+            session.Id,
+            paymentIntent?.Id,
+            shouldSaveCard,
+            expandedSession.CustomerId,
+            paymentIntent?.PaymentMethod != null);
+
         var result = new WebhookProcessResult
         {
             Success = true,
             TransactionReference = transactionReference,
             Status = MapStripePaymentStatusToPaymentStatusType(paymentIntent?.Status ?? "processing"),
-            AmountInPence = paymentIntent?.Amount
+            AmountInPence = paymentIntent?.Amount,
+            CustomerId = expandedSession.CustomerId // Save Stripe customer ID
         };
 
-        // Extract card details if available
-        if (paymentIntent?.PaymentMethod is PaymentMethod paymentMethod)
+        // Only extract and save card details if user chose to save card
+        if (shouldSaveCard && paymentIntent?.PaymentMethod is PaymentMethod paymentMethod)
         {
             result.Card = ExtractCardDetails(paymentMethod);
             result.AuthorizationCode = paymentMethod.Id; // Save PaymentMethod ID for recurring payments
+            _logger.LogInformation("Payment method will be SAVED - PaymentMethodId: {PaymentMethodId}, CustomerId: {CustomerId}, Last4: {Last4}",
+                paymentMethod.Id,
+                expandedSession.CustomerId,
+                paymentMethod.Card?.Last4);
+        }
+        else
+        {
+            _logger.LogInformation("Payment method will NOT be saved - ShouldSaveCard: {ShouldSaveCard}, HasPaymentMethod: {HasPaymentMethod}",
+                shouldSaveCard,
+                paymentIntent?.PaymentMethod != null);
         }
 
         return result;
@@ -421,34 +461,60 @@ public class StripeGateway : IPaymentGateway
     /// <summary>
     /// Handle payment_intent.succeeded event
     /// </summary>
-    private Task<WebhookProcessResult> HandlePaymentIntentSucceeded(Event stripeEvent)
+    private async Task<WebhookProcessResult> HandlePaymentIntentSucceeded(Event stripeEvent)
     {
         var paymentIntent = stripeEvent.Data.Object as PaymentIntent;
         if (paymentIntent == null)
         {
-            return Task.FromResult(new WebhookProcessResult { Success = false, ErrorMessage = "Invalid payment intent data" });
+            return new WebhookProcessResult { Success = false, ErrorMessage = "Invalid payment intent data" };
         }
 
         _logger.LogInformation("Payment intent succeeded: {PaymentIntentId}", paymentIntent.Id);
 
-        var transactionReference = paymentIntent.Metadata.GetValueOrDefault("transaction_reference");
+        // Expand PaymentIntent to get full payment method details
+        var paymentIntentService = new PaymentIntentService();
+        var expandedPaymentIntent = await paymentIntentService.GetAsync(paymentIntent.Id, new PaymentIntentGetOptions
+        {
+            Expand = new List<string> { "payment_method" }
+        });
+
+        var transactionReference = expandedPaymentIntent.Metadata.GetValueOrDefault("transaction_reference");
+
+        // Check if card should be saved based on metadata flag
+        var shouldSaveCard = expandedPaymentIntent.Metadata.GetValueOrDefault("save_payment_method") == "true";
+
+        _logger.LogInformation("PaymentIntent expanded - ShouldSaveCard: {ShouldSaveCard}, HasPaymentMethod: {HasPaymentMethod}, CustomerId: {CustomerId}",
+            shouldSaveCard,
+            expandedPaymentIntent.PaymentMethod != null,
+            expandedPaymentIntent.CustomerId);
 
         var result = new WebhookProcessResult
         {
             Success = true,
             TransactionReference = transactionReference,
             Status = PaymentStatusType.Successful,
-            AmountInPence = paymentIntent.Amount
+            AmountInPence = expandedPaymentIntent.Amount,
+            CustomerId = expandedPaymentIntent.CustomerId // Save Stripe customer ID
         };
 
-        // Extract card details if available
-        if (paymentIntent.PaymentMethod is PaymentMethod paymentMethod)
+        // Only extract and save card details if user chose to save card
+        if (shouldSaveCard && expandedPaymentIntent.PaymentMethod is PaymentMethod paymentMethod)
         {
             result.Card = ExtractCardDetails(paymentMethod);
             result.AuthorizationCode = paymentMethod.Id;
+            _logger.LogInformation("Payment method will be SAVED - PaymentMethodId: {PaymentMethodId}, CustomerId: {CustomerId}, Last4: {Last4}",
+                paymentMethod.Id,
+                expandedPaymentIntent.CustomerId,
+                paymentMethod.Card?.Last4);
+        }
+        else
+        {
+            _logger.LogInformation("Payment method will NOT be saved - ShouldSaveCard: {ShouldSaveCard}, HasPaymentMethod: {HasPaymentMethod}",
+                shouldSaveCard,
+                expandedPaymentIntent.PaymentMethod != null);
         }
 
-        return Task.FromResult(result);
+        return result;
     }
 
     /// <summary>
@@ -553,17 +619,24 @@ public class StripeGateway : IPaymentGateway
             {
                 result.PaidAt = paymentIntent.Created;
 
-                // Extract card details
+                // Extract card details and payment method
                 if (paymentIntent.PaymentMethod is PaymentMethod paymentMethod)
                 {
                     result.Card = ExtractCardDetails(paymentMethod);
-                    result.AuthorizationCode = paymentMethod.Id; // For saving card
+                    result.AuthorizationCode = paymentMethod.Id; // Stripe payment method ID
+                    result.CustomerId = session.CustomerId; // Stripe customer ID
                 }
             }
         }
         else
         {
             result.Status = session.PaymentStatus == "paid" ? PaymentStatusType.Successful : PaymentStatusType.Pending;
+        }
+
+        // Always set customer ID from session if available
+        if (!string.IsNullOrEmpty(session.CustomerId))
+        {
+            result.CustomerId = session.CustomerId;
         }
 
         return result;

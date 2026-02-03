@@ -65,12 +65,12 @@ public class CampaignRepository : ICampaignRepository
     public async Task<IEnumerable<Campaign>> GetAllWithAutoPay()
     {
         // Get campaigns that have milestones payment type and auto-pay enabled
-        // CampaignStatus: DRAFT=1, PENDING=2, ACCEPTED=3, COMPLETED=4, CANCELLED=5
+        // CampaignStatus: DRAFT=1, REJECTED=2, AWAITING_CONTRACT_SIGNATURE=3, AWAITING_SIGNATURE_APPROVAL=4, AWAITING_PAYMENT=5, ACTIVE=6, COMPLETED=7, CANCELLED=8
         return await _context.Campaigns
             .Include(c => c.Brand)
             .Where(c => c.IsRecurringEnabled == true &&
                        c.PaymentType == 2 && // Milestones payment type (2 = MILESTONE)
-                       c.CampaignStatus == 3) // ACCEPTED status
+                       c.CampaignStatus == 6) // ACTIVE status
             .ToListAsync();
     }
 }

@@ -297,22 +297,42 @@ public class MilestoneService : IMilestoneService
             // Get the brand user ID from the campaign if not provided
             var userId = brandUserId ?? campaign.BrandId;
 
+            // Determine gateway based on campaign currency
+            var campaignCurrency = campaign.Currency?.ToUpper() ?? "NGN";
+            var gateway = campaignCurrency == "GBP" ? "stripe" : "paystack";
+
             var paymentMethods = await _paymentMethodRepo.GetByUserIdAsync(userId);
 
-            // Check for a reusable card that can be used for auto-pay
-            var reusableCard = paymentMethods?
-                .Where(pm => pm.Gateway == "paystack" &&
-                            pm.IsReusable &&
-                            !string.IsNullOrEmpty(pm.AuthorizationCode))
-                .FirstOrDefault();
+            // Check for a reusable card based on the gateway
+            PaymentMethod? reusableCard = null;
+
+            if (gateway == "stripe")
+            {
+                // For Stripe: Check for StripeCustomerId and StripePaymentMethodId
+                reusableCard = paymentMethods?
+                    .Where(pm => pm.Gateway == "stripe" &&
+                                pm.IsReusable &&
+                                !string.IsNullOrEmpty(pm.StripePaymentMethodId) &&
+                                !string.IsNullOrEmpty(pm.StripeCustomerId))
+                    .FirstOrDefault();
+            }
+            else
+            {
+                // For Paystack: Check for AuthorizationCode
+                reusableCard = paymentMethods?
+                    .Where(pm => pm.Gateway == "paystack" &&
+                                pm.IsReusable &&
+                                !string.IsNullOrEmpty(pm.AuthorizationCode))
+                    .FirstOrDefault();
+            }
 
             if (reusableCard == null)
             {
-                throw new InvalidOperationException("Cannot enable auto-pay without a saved payment method. Please save a card first by paying a milestone.");
+                throw new InvalidOperationException($"Cannot enable auto-pay without a saved {gateway.ToUpper()} payment method. Please save a card first by paying a milestone.");
             }
 
-            _logger.LogInformation("Brand {UserId} has reusable card **** {Last4}, allowing auto-pay",
-                userId, reusableCard.Last4);
+            _logger.LogInformation("Brand {UserId} has reusable {Gateway} card **** {Last4}, allowing auto-pay",
+                userId, gateway, reusableCard.Last4);
         }
 
         campaign.PaymentType = paymentType;

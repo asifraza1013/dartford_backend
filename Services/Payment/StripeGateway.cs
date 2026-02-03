@@ -3,6 +3,7 @@ using inflan_api.Interfaces;
 using inflan_api.Utils;
 using Stripe;
 using Stripe.Checkout;
+using Stripe.Treasury;
 
 namespace inflan_api.Services.Payment;
 
@@ -712,4 +713,289 @@ public class StripeGateway : IPaymentGateway
     }
 
     #endregion
+
+    #region Payout Methods (for GBP withdrawals)
+
+    /// <summary>
+    /// Create and validate a UK bank account for Stripe payouts
+    /// Creates a bank account token to validate the details
+    /// </summary>
+    public async Task<StripeBankAccountResult> CreateExternalAccountAsync(StripeBankAccountRequest request)
+    {
+        try
+        {
+            // Validate UK sort code format (6 digits)
+            var sortCodeClean = request.SortCode.Replace("-", "").Replace(" ", "");
+            if (sortCodeClean.Length != 6 || !sortCodeClean.All(char.IsDigit))
+            {
+                return new StripeBankAccountResult
+                {
+                    Success = false,
+                    ErrorMessage = "Invalid sort code format. Must be 6 digits (e.g., 12-34-56 or 123456)"
+                };
+            }
+
+            // Validate UK account number format (8 digits)
+            var accountNumberClean = request.AccountNumber.Replace(" ", "");
+            if (accountNumberClean.Length != 8 || !accountNumberClean.All(char.IsDigit))
+            {
+                return new StripeBankAccountResult
+                {
+                    Success = false,
+                    ErrorMessage = "Invalid account number format. Must be 8 digits"
+                };
+            }
+
+            // Create a bank account token for validation
+            // Stripe validates bank accounts by creating a token
+            var tokenService = new TokenService();
+            var tokenOptions = new TokenCreateOptions
+            {
+                BankAccount = new TokenBankAccountOptions
+                {
+                    Country = "GB",
+                    Currency = "gbp",
+                    AccountHolderName = request.AccountName,
+                    AccountHolderType = "individual",
+                    RoutingNumber = sortCodeClean, // Sort code
+                    AccountNumber = accountNumberClean
+                }
+            };
+
+            var token = await tokenService.CreateAsync(tokenOptions);
+
+            _logger.LogInformation("Stripe: Validated UK bank account for {AccountName}, SortCode={SortCode}, AccountNumber=****{Last4}",
+                request.AccountName, sortCodeClean, accountNumberClean[^4..]);
+
+            // Return the token ID which can be used for payouts
+            return new StripeBankAccountResult
+            {
+                Success = true,
+                BankAccountId = token.Id, // Token ID that can be used for payouts
+                Last4 = accountNumberClean[^4..]
+            };
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe error validating bank account: {Error}", ex.Message);
+            return new StripeBankAccountResult
+            {
+                Success = false,
+                ErrorMessage = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error validating Stripe bank account");
+            return new StripeBankAccountResult
+            {
+                Success = false,
+                ErrorMessage = "An unexpected error occurred while validating bank account"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Initiate a payout to an external bank account
+    /// Uses Stripe Payouts API to send money directly to a bank account
+    /// </summary>
+    public async Task<StripePayoutResult> InitiatePayoutAsync(StripePayoutRequest request)
+    {
+        try
+        {
+            _logger.LogInformation("Initiating Stripe payout: Amount={Amount}p, Reference={Reference}",
+                request.AmountInPence, request.Reference);
+
+            // Validate UK bank account format
+            var sortCodeClean = request.SortCode.Replace("-", "").Replace(" ", "");
+            var accountNumberClean = request.AccountNumber.Replace(" ", "");
+
+            if (sortCodeClean.Length != 6 || !sortCodeClean.All(char.IsDigit))
+            {
+                return new StripePayoutResult
+                {
+                    Success = false,
+                    Status = StripePayoutStatus.Failed,
+                    ErrorMessage = "Invalid sort code format"
+                };
+            }
+
+            if (accountNumberClean.Length != 8 || !accountNumberClean.All(char.IsDigit))
+            {
+                return new StripePayoutResult
+                {
+                    Success = false,
+                    Status = StripePayoutStatus.Failed,
+                    ErrorMessage = "Invalid account number format"
+                };
+            }
+
+            // Create a bank account token first
+            var tokenService = new TokenService();
+            var tokenOptions = new TokenCreateOptions
+            {
+                BankAccount = new TokenBankAccountOptions
+                {
+                    Country = "GB",
+                    Currency = "gbp",
+                    AccountHolderName = request.AccountName,
+                    AccountHolderType = "individual",
+                    RoutingNumber = sortCodeClean,
+                    AccountNumber = accountNumberClean
+                }
+            };
+
+            var token = await tokenService.CreateAsync(tokenOptions);
+
+            // Create an external account (bank account) on Stripe account
+            // Note: This requires the Stripe account to be a Custom or Express account
+            // For standard Stripe accounts, we need to use Transfers to Connected Accounts instead
+
+            // For now, we'll use the Stripe Payouts API directly
+            // Create a payout to the bank account
+            var payoutService = new PayoutService();
+            var payoutOptions = new PayoutCreateOptions
+            {
+                Amount = request.AmountInPence,
+                Currency = "gbp",
+                Destination = token.BankAccount.Id, // Use the bank account from token
+                Description = $"Inflan withdrawal - {request.Reference}",
+                Metadata = new Dictionary<string, string>
+                {
+                    ["reference"] = request.Reference,
+                    ["account_name"] = request.AccountName,
+                    ["sort_code"] = sortCodeClean,
+                    ["account_last4"] = accountNumberClean[^4..]
+                }
+            };
+
+            var payout = await payoutService.CreateAsync(payoutOptions);
+
+            _logger.LogInformation("Stripe payout created successfully: PayoutId={PayoutId}, Status={Status}",
+                payout.Id, payout.Status);
+
+            return new StripePayoutResult
+            {
+                Success = true,
+                PayoutId = payout.Id,
+                Status = MapPayoutStatus(payout.Status),
+                ArrivalDate = payout.ArrivalDate
+            };
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe error initiating payout: {Error}", ex.Message);
+            return new StripePayoutResult
+            {
+                Success = false,
+                Status = StripePayoutStatus.Failed,
+                ErrorMessage = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error initiating Stripe payout");
+            return new StripePayoutResult
+            {
+                Success = false,
+                Status = StripePayoutStatus.Failed,
+                ErrorMessage = "An unexpected error occurred"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Get payout status from Stripe
+    /// </summary>
+    public async Task<StripePayoutResult> GetPayoutStatusAsync(string payoutId)
+    {
+        try
+        {
+            var payoutService = new PayoutService();
+            var payout = await payoutService.GetAsync(payoutId);
+
+            return new StripePayoutResult
+            {
+                Success = true,
+                PayoutId = payout.Id,
+                Status = MapPayoutStatus(payout.Status),
+                ArrivalDate = payout.ArrivalDate,
+                ErrorMessage = payout.FailureMessage
+            };
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Stripe error getting payout status: {Error}", ex.Message);
+            return new StripePayoutResult
+            {
+                Success = false,
+                Status = StripePayoutStatus.Failed,
+                ErrorMessage = ex.Message
+            };
+        }
+    }
+
+    /// <summary>
+    /// Map Stripe payout status to our enum
+    /// </summary>
+    private StripePayoutStatus MapPayoutStatus(string stripeStatus)
+    {
+        return stripeStatus?.ToLower() switch
+        {
+            "pending" => StripePayoutStatus.Pending,
+            "in_transit" => StripePayoutStatus.InTransit,
+            "paid" => StripePayoutStatus.Paid,
+            "failed" => StripePayoutStatus.Failed,
+            "canceled" => StripePayoutStatus.Canceled,
+            _ => StripePayoutStatus.Pending
+        };
+    }
+
+    #endregion
 }
+
+#region Stripe Payout DTOs
+
+public class StripeBankAccountRequest
+{
+    public string AccountName { get; set; } = "";
+    public string AccountNumber { get; set; } = ""; // 8-digit UK account number
+    public string SortCode { get; set; } = ""; // 6-digit UK sort code (XX-XX-XX or XXXXXX)
+}
+
+public class StripeBankAccountResult
+{
+    public bool Success { get; set; }
+    public string? BankAccountId { get; set; } // Stripe token ID or external account ID
+    public string? Last4 { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+public class StripePayoutRequest
+{
+    public long AmountInPence { get; set; }
+    public string Reference { get; set; } = "";
+    public string SortCode { get; set; } = "";
+    public string AccountNumber { get; set; } = "";
+    public string AccountName { get; set; } = "";
+}
+
+public class StripePayoutResult
+{
+    public bool Success { get; set; }
+    public string? PayoutId { get; set; }
+    public StripePayoutStatus Status { get; set; }
+    public DateTime? ArrivalDate { get; set; }
+    public string? ErrorMessage { get; set; }
+}
+
+public enum StripePayoutStatus
+{
+    Pending,
+    InTransit,
+    Paid,
+    Failed,
+    Canceled
+}
+
+#endregion

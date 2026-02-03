@@ -22,6 +22,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
     private readonly IInfluencerBankAccountRepository _bankAccountRepo;
     private readonly PaystackGateway _paystackGateway;
     private readonly TrueLayerGateway _trueLayerGateway;
+    private readonly StripeGateway _stripeGateway;
     private readonly IEmailService _emailService;
     private readonly ILogger<PaymentOrchestrator> _logger;
 
@@ -40,6 +41,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         IInfluencerBankAccountRepository bankAccountRepo,
         PaystackGateway paystackGateway,
         TrueLayerGateway trueLayerGateway,
+        StripeGateway stripeGateway,
         IEmailService emailService,
         ILogger<PaymentOrchestrator> logger)
     {
@@ -57,6 +59,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         _bankAccountRepo = bankAccountRepo;
         _paystackGateway = paystackGateway;
         _trueLayerGateway = trueLayerGateway;
+        _stripeGateway = stripeGateway;
         _emailService = emailService;
         _logger = logger;
     }
@@ -593,7 +596,11 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             };
 
             // Route to appropriate gateway
-            if (currency == "GBP" && bankAccount.PaymentGateway == "truelayer")
+            if (currency == "GBP" && bankAccount.PaymentGateway == "stripe")
+            {
+                await ProcessAutoWithdrawalStripe(withdrawal, bankAccount);
+            }
+            else if (currency == "GBP" && bankAccount.PaymentGateway == "truelayer")
             {
                 await ProcessAutoWithdrawalTrueLayer(withdrawal, bankAccount);
             }
@@ -746,6 +753,55 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         {
             withdrawal.Status = (int)WithdrawalStatus.FAILED;
             withdrawal.FailureReason = payoutResult.ErrorMessage ?? "TrueLayer payout failed";
+        }
+        // Otherwise keep as PROCESSING - webhook will update status
+    }
+
+    private async Task ProcessAutoWithdrawalStripe(Withdrawal withdrawal, InfluencerBankAccount bankAccount)
+    {
+        // Stripe requires sort code and full account number for payouts
+        // Check if we have the full account details stored
+        if (string.IsNullOrEmpty(bankAccount.AccountNumberFull) || string.IsNullOrEmpty(bankAccount.BankCode))
+        {
+            // Without stored full bank details, we can't auto-withdraw for GBP
+            // Mark as pending and the influencer will need to manually request withdrawal
+            withdrawal.Status = (int)WithdrawalStatus.PENDING;
+            withdrawal.FailureReason = "Stripe auto-withdrawal requires complete bank account details. Please manually request withdrawal or re-add your bank account.";
+            _logger.LogWarning("Auto-withdrawal for Stripe skipped: Missing full account details for influencer bank account {BankAccountId}",
+                bankAccount.Id);
+            return;
+        }
+
+        var payoutReference = $"AUTO-STRIPE-{withdrawal.Id}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+
+        // Use Stripe payout with full bank account details
+        var payoutResult = await _stripeGateway.InitiatePayoutAsync(new StripePayoutRequest
+        {
+            AmountInPence = withdrawal.AmountInPence,
+            Reference = payoutReference,
+            SortCode = bankAccount.BankCode,
+            AccountNumber = bankAccount.AccountNumberFull,
+            AccountName = bankAccount.AccountName
+        });
+
+        if (!payoutResult.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Failed to initiate Stripe payout";
+            return;
+        }
+
+        withdrawal.StripePayoutId = payoutResult.PayoutId;
+
+        if (payoutResult.Status == StripePayoutStatus.Paid)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+            withdrawal.CompletedAt = DateTime.UtcNow;
+        }
+        else if (payoutResult.Status == StripePayoutStatus.Failed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Stripe payout failed";
         }
         // Otherwise keep as PROCESSING - webhook will update status
     }

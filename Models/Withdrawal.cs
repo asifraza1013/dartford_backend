@@ -21,6 +21,9 @@ public class Withdrawal
     public string? TrueLayerPayoutId { get; set; }
     public string? TrueLayerBeneficiaryId { get; set; }
 
+    // Stripe-specific fields
+    public string? StripePayoutId { get; set; }
+
     // Bank details (for display)
     public string? BankName { get; set; }
     public string? BankCode { get; set; } // Sort code for UK, bank code for Nigeria

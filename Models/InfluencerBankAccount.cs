@@ -22,6 +22,7 @@ public class InfluencerBankAccount
     // Gateway-specific recipient codes (secure references)
     public string? PaystackRecipientCode { get; set; }
     public string? TrueLayerBeneficiaryId { get; set; }
+    public string? StripeBankAccountId { get; set; } // Stripe External Account ID (for payouts)
 
     public bool IsDefault { get; set; } = false;
     public bool IsActive { get; set; } = true;

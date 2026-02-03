@@ -22,6 +22,7 @@ public class PayoutController : ControllerBase
     private readonly IPlatformSettingsService _settingsService;
     private readonly PaystackGateway _paystackGateway;
     private readonly TrueLayerGateway _trueLayerGateway;
+    private readonly StripeGateway _stripeGateway;
     private readonly IUserService _userService;
     private readonly IInfluencerBankAccountRepository _bankAccountRepo;
     private readonly INotificationService _notificationService;
@@ -37,6 +38,7 @@ public class PayoutController : ControllerBase
         IPlatformSettingsService settingsService,
         PaystackGateway paystackGateway,
         TrueLayerGateway trueLayerGateway,
+        StripeGateway stripeGateway,
         IUserService userService,
         IInfluencerBankAccountRepository bankAccountRepo,
         INotificationService notificationService,
@@ -51,6 +53,7 @@ public class PayoutController : ControllerBase
         _settingsService = settingsService;
         _paystackGateway = paystackGateway;
         _trueLayerGateway = trueLayerGateway;
+        _stripeGateway = stripeGateway;
         _userService = userService;
         _bankAccountRepo = bankAccountRepo;
         _notificationService = notificationService;
@@ -354,7 +357,8 @@ public class PayoutController : ControllerBase
 
         return location switch
         {
-            "GB" => ("GBP", "truelayer"),
+            "GB" => ("GBP", "stripe"),
+            "UK" => ("GBP", "stripe"),
             _ => ("NGN", "paystack")
         };
     }
@@ -424,7 +428,11 @@ public class PayoutController : ControllerBase
         }
 
         // Route to appropriate gateway based on user's currency
-        if (gateway == "truelayer")
+        if (gateway == "stripe")
+        {
+            return await ProcessStripeWithdrawal(userId, request, userCurrency);
+        }
+        else if (gateway == "truelayer")
         {
             return await ProcessTrueLayerWithdrawal(userId, request, userCurrency);
         }
@@ -1021,6 +1029,309 @@ public class PayoutController : ControllerBase
     }
 
     /// <summary>
+    /// Process withdrawal via Stripe (for UK users - GBP)
+    /// Uses Stripe Payouts API to send money directly to bank account
+    /// </summary>
+    private async Task<IActionResult> ProcessStripeWithdrawal(int userId, WithdrawalRequestDto request, string currency)
+    {
+        string bankName;
+        string sortCode;
+        string accountNumber;
+        string accountNumberLast4;
+        string accountName;
+
+        // Check if using saved bank account or one-time details
+        if (request.BankAccountId.HasValue)
+        {
+            // Use saved bank account
+            var savedAccount = await _bankAccountRepo.GetByIdAsync(request.BankAccountId.Value);
+            if (savedAccount == null)
+            {
+                return BadRequest(new { message = "Bank account not found" });
+            }
+
+            if (savedAccount.InfluencerId != userId)
+            {
+                return Forbid();
+            }
+
+            // Check if we have the full account number stored
+            if (!string.IsNullOrEmpty(savedAccount.AccountNumberFull))
+            {
+                // Use stored full account number
+                bankName = savedAccount.BankName;
+                sortCode = savedAccount.BankCode; // For UK accounts, BankCode stores the sort code
+                accountNumber = savedAccount.AccountNumberFull;
+                accountNumberLast4 = savedAccount.AccountNumberLast4;
+                accountName = savedAccount.AccountName;
+            }
+            else
+            {
+                // Legacy account - need user to provide full account number
+                if (string.IsNullOrWhiteSpace(request.AccountNumber))
+                {
+                    return BadRequest(new { message = "Please provide your full account number to verify the withdrawal. This is required for accounts added before the update." });
+                }
+
+                // Verify the provided account number matches the saved account (last 4 digits)
+                var providedLast4 = request.AccountNumber.Length >= 4
+                    ? request.AccountNumber[^4..]
+                    : request.AccountNumber;
+
+                if (providedLast4 != savedAccount.AccountNumberLast4)
+                {
+                    return BadRequest(new { message = "Account number doesn't match saved bank account" });
+                }
+
+                // Update the saved account with the full account number for future withdrawals
+                savedAccount.AccountNumberFull = request.AccountNumber;
+                await _bankAccountRepo.UpdateAsync(savedAccount);
+                _logger.LogInformation("Updated legacy bank account {BankAccountId} with full account number", savedAccount.Id);
+
+                bankName = savedAccount.BankName;
+                sortCode = savedAccount.BankCode;
+                accountNumber = request.AccountNumber;
+                accountNumberLast4 = savedAccount.AccountNumberLast4;
+                accountName = savedAccount.AccountName;
+            }
+        }
+        else
+        {
+            // Validate required bank details for one-time use (UK format)
+            if (string.IsNullOrWhiteSpace(request.SortCode))
+            {
+                return BadRequest(new { message = "Sort code is required for UK bank accounts" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.AccountNumber))
+            {
+                return BadRequest(new { message = "Account number is required" });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.AccountName))
+            {
+                return BadRequest(new { message = "Account name is required" });
+            }
+
+            // Validate UK bank account format
+            var validationResult = await _stripeGateway.CreateExternalAccountAsync(new StripeBankAccountRequest
+            {
+                AccountName = request.AccountName!,
+                AccountNumber = request.AccountNumber!,
+                SortCode = request.SortCode!
+            });
+
+            if (!validationResult.Success)
+            {
+                return BadRequest(new { message = validationResult.ErrorMessage });
+            }
+
+            bankName = request.BankName ?? "";
+            sortCode = request.SortCode!;
+            accountNumber = request.AccountNumber!;
+            accountNumberLast4 = request.AccountNumber!.Length >= 4
+                ? request.AccountNumber[^4..]
+                : request.AccountNumber;
+            accountName = request.AccountName!;
+        }
+
+        // Create withdrawal record in PROCESSING state
+        var withdrawal = new Withdrawal
+        {
+            InfluencerId = userId,
+            AmountInPence = request.AmountInPence,
+            Currency = currency,
+            PaymentGateway = "stripe",
+            BankName = bankName,
+            BankCode = sortCode, // Store sort code for UK accounts
+            AccountNumber = accountNumberLast4, // Only store last 4 digits
+            AccountName = accountName,
+            Status = (int)WithdrawalStatus.PROCESSING,
+            CreatedAt = DateTime.UtcNow,
+            ProcessedAt = DateTime.UtcNow
+        };
+
+        await _withdrawalRepo.CreateAsync(withdrawal);
+
+        _logger.LogInformation("Withdrawal request created for influencer {UserId}, amount: {Amount}p, processing via Stripe",
+            userId, request.AmountInPence);
+
+        // Initiate Stripe payout
+        var payoutReference = $"WD{withdrawal.Id}";
+        var payoutResult = await _stripeGateway.InitiatePayoutAsync(new StripePayoutRequest
+        {
+            SortCode = sortCode,
+            AccountNumber = accountNumber,
+            AccountName = accountName,
+            AmountInPence = request.AmountInPence,
+            Reference = payoutReference
+        });
+
+        if (!payoutResult.Success)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Failed to initiate payout";
+            await _withdrawalRepo.UpdateAsync(withdrawal);
+
+            _logger.LogError("Failed to initiate Stripe payout for withdrawal {WithdrawalId}: {Error}",
+                withdrawal.Id, payoutResult.ErrorMessage);
+
+            return BadRequest(new { message = "Failed to process withdrawal: " + payoutResult.ErrorMessage });
+        }
+
+        withdrawal.StripePayoutId = payoutResult.PayoutId;
+
+        // Update status based on payout result
+        if (payoutResult.Status == StripePayoutStatus.Paid)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.COMPLETED;
+            withdrawal.CompletedAt = DateTime.UtcNow;
+            _logger.LogInformation("Withdrawal {WithdrawalId} completed successfully via Stripe", withdrawal.Id);
+        }
+        else if (payoutResult.Status == StripePayoutStatus.Pending || payoutResult.Status == StripePayoutStatus.InTransit)
+        {
+            // Keep as PROCESSING - webhook will update when complete
+            _logger.LogInformation("Withdrawal {WithdrawalId} is {Status}, waiting for Stripe webhook",
+                withdrawal.Id, payoutResult.Status);
+        }
+        else if (payoutResult.Status == StripePayoutStatus.Failed)
+        {
+            withdrawal.Status = (int)WithdrawalStatus.FAILED;
+            withdrawal.FailureReason = payoutResult.ErrorMessage ?? "Payout failed";
+            _logger.LogWarning("Withdrawal {WithdrawalId} payout status: {Status}", withdrawal.Id, payoutResult.Status);
+        }
+        else
+        {
+            // Unknown status - keep as processing and wait for webhook
+            _logger.LogWarning("Withdrawal {WithdrawalId} has unknown payout status: {Status}", withdrawal.Id, payoutResult.Status);
+        }
+
+        await _withdrawalRepo.UpdateAsync(withdrawal);
+
+        // Get user details for email notifications
+        var user = await _userRepo.GetById(userId);
+        var influencerName = user?.Name ?? "Influencer";
+        var influencerEmail = user?.Email ?? "";
+
+        // Send notification to influencer about withdrawal status
+        var formattedAmount = FormatAmount(withdrawal.AmountInPence, withdrawal.Currency);
+        if (withdrawal.Status == (int)WithdrawalStatus.COMPLETED)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Successful",
+                Message = $"Your withdrawal of {formattedAmount} has been sent to your bank account ({bankName} ****{accountNumberLast4})",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+
+            // Send email notification for successful withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalSuccessAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal success email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
+        }
+        else if (withdrawal.Status == (int)WithdrawalStatus.PROCESSING)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Processing",
+                Message = $"Your withdrawal request of {formattedAmount} is being processed. You'll be notified when complete.",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+
+            // Send email notification for processing withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalProcessingAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        bankName,
+                        accountNumberLast4);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal processing email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
+        }
+        else if (withdrawal.Status == (int)WithdrawalStatus.FAILED)
+        {
+            await _notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = userId,
+                Type = NotificationType.Payment,
+                Title = "Withdrawal Failed",
+                Message = $"Your withdrawal request of {formattedAmount} could not be processed. Reason: {withdrawal.FailureReason ?? "Unknown error"}",
+                ReferenceId = withdrawal.Id,
+                ReferenceType = "withdrawal"
+            });
+
+            // Send email notification for failed withdrawal
+            if (!string.IsNullOrEmpty(influencerEmail))
+            {
+                try
+                {
+                    await _emailService.SendWithdrawalFailedAsync(
+                        influencerEmail,
+                        influencerName,
+                        withdrawal.AmountInPence,
+                        withdrawal.Currency,
+                        withdrawal.FailureReason);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to send withdrawal failure email for withdrawal {WithdrawalId}", withdrawal.Id);
+                }
+            }
+        }
+
+        var responseMessage = withdrawal.Status switch
+        {
+            (int)WithdrawalStatus.COMPLETED => "Withdrawal processed successfully",
+            (int)WithdrawalStatus.FAILED => $"Withdrawal failed: {withdrawal.FailureReason}",
+            _ => "Withdrawal is being processed. You'll be notified when complete."
+        };
+
+        return Ok(new
+        {
+            message = responseMessage,
+            withdrawal = new
+            {
+                withdrawal.Id,
+                withdrawal.AmountInPence,
+                withdrawal.Currency,
+                status = GetWithdrawalStatusText(withdrawal.Status),
+                withdrawal.CreatedAt,
+                withdrawal.ProcessedAt,
+                withdrawal.CompletedAt
+            }
+        });
+    }
+
+    /// <summary>
     /// Get list of supported banks
     /// </summary>
     [HttpGet("banks")]
@@ -1238,9 +1549,34 @@ public class PayoutController : ControllerBase
 
         string? paystackRecipientCode = null;
         string? trueLayerBeneficiaryId = null;
+        string? stripeBankAccountId = null;
         string bankCode;
 
-        if (gateway == "truelayer")
+        if (gateway == "stripe")
+        {
+            // For UK users - validate sort code with Stripe
+            if (string.IsNullOrWhiteSpace(request.SortCode))
+                return BadRequest(new { message = "Sort code is required for UK bank accounts" });
+
+            // Create and validate external account on Stripe
+            var bankAccountResult = await _stripeGateway.CreateExternalAccountAsync(new StripeBankAccountRequest
+            {
+                AccountName = request.AccountName,
+                AccountNumber = request.AccountNumber,
+                SortCode = request.SortCode
+            });
+
+            if (!bankAccountResult.Success)
+            {
+                _logger.LogError("Failed to create Stripe bank account for user {UserId}: {Error}",
+                    userId, bankAccountResult.ErrorMessage);
+                return BadRequest(new { message = "Failed to verify bank account: " + bankAccountResult.ErrorMessage });
+            }
+
+            stripeBankAccountId = bankAccountResult.BankAccountId;
+            bankCode = request.SortCode; // Store sort code as bank code for UK accounts
+        }
+        else if (gateway == "truelayer")
         {
             // For UK users - validate sort code
             if (string.IsNullOrWhiteSpace(request.SortCode))
@@ -1295,7 +1631,7 @@ public class PayoutController : ControllerBase
         var isFirstAccount = !existingAccounts.Any();
 
         // Store bank account details
-        // For TrueLayer (GBP), we need the full account number for open-loop payouts
+        // For Stripe/TrueLayer (GBP), we need the full account number for payouts
         // For Paystack (NGN), we use the recipient code instead
         var bankAccount = new InfluencerBankAccount
         {
@@ -1305,12 +1641,13 @@ public class PayoutController : ControllerBase
             AccountNumberLast4 = request.AccountNumber.Length >= 4
                 ? request.AccountNumber[^4..]
                 : request.AccountNumber,
-            AccountNumberFull = gateway == "truelayer" ? request.AccountNumber : null, // Store full number only for TrueLayer
+            AccountNumberFull = (gateway == "stripe" || gateway == "truelayer") ? request.AccountNumber : null, // Store full number for Stripe and TrueLayer
             AccountName = request.AccountName,
             Currency = userCurrency,
             PaymentGateway = gateway,
             PaystackRecipientCode = paystackRecipientCode,
             TrueLayerBeneficiaryId = trueLayerBeneficiaryId,
+            StripeBankAccountId = stripeBankAccountId,
             IsDefault = isFirstAccount,
             CreatedAt = DateTime.UtcNow
         };

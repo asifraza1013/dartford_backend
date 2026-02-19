@@ -18,7 +18,7 @@
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="8.0.7" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
     <PackageReference Include="QuestPDF" Version="2025.7.4" />
-    <PackageReference Include="Stripe.net" Version="48.3.0" />
+    <PackageReference Include="Stripe.net" Version="50.2.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     <PackageReference Include="TrueLayer.Signing" Version="0.2.5" />
   </ItemGroup>

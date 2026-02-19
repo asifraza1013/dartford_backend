@@ -114,6 +114,13 @@ namespace inflan_api
             builder.Services.AddTransient<IMilestoneService, MilestoneService>();
             builder.Services.AddTransient<TrueLayerGateway>();
             builder.Services.AddTransient<PaystackGateway>();
+            // Register named HttpClient for Stripe v2 API (Global Payouts)
+            builder.Services.AddHttpClient("StripeV2Api", client =>
+            {
+                client.DefaultRequestHeaders.Add("User-Agent", "Inflan/1.0");
+                client.Timeout = TimeSpan.FromSeconds(30);
+            });
+
             builder.Services.AddTransient<StripeGateway>();
             builder.Services.AddTransient<IPaymentGatewayFactory, PaymentGatewayFactory>();
             builder.Services.AddTransient<IPaymentOrchestrator, PaymentOrchestrator>();

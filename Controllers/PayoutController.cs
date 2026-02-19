@@ -1039,6 +1039,8 @@ public class PayoutController : ControllerBase
         string accountNumber;
         string accountNumberLast4;
         string accountName;
+        string? stripeRecipientAccountId = null;
+        string? stripePayoutMethodId = null;
 
         // Check if using saved bank account or one-time details
         if (request.BankAccountId.HasValue)
@@ -1054,6 +1056,13 @@ public class PayoutController : ControllerBase
             {
                 return Forbid();
             }
+
+            // Get stored Stripe v2 IDs for Global Payouts
+            stripeRecipientAccountId = savedAccount.StripeRecipientAccountId;
+            stripePayoutMethodId = savedAccount.StripePayoutMethodId;
+
+            _logger.LogInformation("Using saved bank account {BankAccountId}: RecipientAccountId={RecipientAccountId}, PayoutMethodId={PayoutMethodId}",
+                savedAccount.Id, stripeRecipientAccountId, stripePayoutMethodId);
 
             // Check if we have the full account number stored
             if (!string.IsNullOrEmpty(savedAccount.AccountNumberFull))
@@ -1164,7 +1173,9 @@ public class PayoutController : ControllerBase
             AccountNumber = accountNumber,
             AccountName = accountName,
             AmountInPence = request.AmountInPence,
-            Reference = payoutReference
+            Reference = payoutReference,
+            RecipientAccountId = stripeRecipientAccountId, // Use stored recipient account ID if available
+            PayoutMethodId = stripePayoutMethodId // Use stored payout method if available
         });
 
         if (!payoutResult.Success)
@@ -1550,6 +1561,8 @@ public class PayoutController : ControllerBase
         string? paystackRecipientCode = null;
         string? trueLayerBeneficiaryId = null;
         string? stripeBankAccountId = null;
+        string? stripeRecipientAccountId = null;
+        string? stripePayoutMethodId = null;
         string bankCode;
 
         if (gateway == "stripe")
@@ -1559,6 +1572,7 @@ public class PayoutController : ControllerBase
                 return BadRequest(new { message = "Sort code is required for UK bank accounts" });
 
             // Create and validate external account on Stripe
+            // This also creates the recipient account and payout method for Global Payouts v2
             var bankAccountResult = await _stripeGateway.CreateExternalAccountAsync(new StripeBankAccountRequest
             {
                 AccountName = request.AccountName,
@@ -1574,7 +1588,12 @@ public class PayoutController : ControllerBase
             }
 
             stripeBankAccountId = bankAccountResult.BankAccountId;
+            stripeRecipientAccountId = bankAccountResult.RecipientAccountId;
+            stripePayoutMethodId = bankAccountResult.PayoutMethodId;
             bankCode = request.SortCode; // Store sort code as bank code for UK accounts
+
+            _logger.LogInformation("Stripe bank account created: TokenId={TokenId}, RecipientAccountId={RecipientAccountId}, PayoutMethodId={PayoutMethodId}",
+                stripeBankAccountId, stripeRecipientAccountId, stripePayoutMethodId);
         }
         else if (gateway == "truelayer")
         {
@@ -1648,6 +1667,8 @@ public class PayoutController : ControllerBase
             PaystackRecipientCode = paystackRecipientCode,
             TrueLayerBeneficiaryId = trueLayerBeneficiaryId,
             StripeBankAccountId = stripeBankAccountId,
+            StripeRecipientAccountId = stripeRecipientAccountId, // v2 Global Payouts recipient account ID
+            StripePayoutMethodId = stripePayoutMethodId, // v2 Global Payouts payout method ID
             IsDefault = isFirstAccount,
             CreatedAt = DateTime.UtcNow
         };

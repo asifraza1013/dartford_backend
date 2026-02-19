@@ -1144,7 +1144,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             _logger.LogInformation("Processing transfer webhook - TransferCode: {TransferCode}, TransactionRef: {TransactionRef}, Status: {Status}",
                 result.TransferCode, result.TransactionReference, result.Status);
 
-            // Find withdrawal by transfer code (Paystack) or payout ID (TrueLayer)
+            // Find withdrawal by transfer code (Paystack), payout ID (TrueLayer), or outbound payment ID (Stripe)
             Withdrawal? withdrawal = null;
 
             // First try by Paystack transfer code
@@ -1157,6 +1157,12 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             if (withdrawal == null && !string.IsNullOrEmpty(result.TransactionReference))
             {
                 withdrawal = await _withdrawalRepo.GetByTrueLayerPayoutIdAsync(result.TransactionReference);
+            }
+
+            // If not found, try by Stripe payout ID (Global Payouts outbound payment ID)
+            if (withdrawal == null && !string.IsNullOrEmpty(result.TransactionReference))
+            {
+                withdrawal = await _withdrawalRepo.GetByStripePayoutIdAsync(result.TransactionReference);
             }
 
             if (withdrawal == null)

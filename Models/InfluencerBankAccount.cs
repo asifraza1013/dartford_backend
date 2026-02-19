@@ -24,6 +24,10 @@ public class InfluencerBankAccount
     public string? TrueLayerBeneficiaryId { get; set; }
     public string? StripeBankAccountId { get; set; } // Stripe External Account ID (for payouts)
 
+    // Stripe Global Payouts v2 fields
+    public string? StripeRecipientAccountId { get; set; } // v2 recipient account ID (acct_xxx)
+    public string? StripePayoutMethodId { get; set; } // v2 payout method ID (pm_xxx)
+
     public bool IsDefault { get; set; } = false;
     public bool IsActive { get; set; } = true;
 

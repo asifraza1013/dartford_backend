@@ -70,7 +70,7 @@ public class CampaignRepository : ICampaignRepository
             .Include(c => c.Brand)
             .Where(c => c.IsRecurringEnabled == true &&
                        c.PaymentType == 2 && // Milestones payment type (2 = MILESTONE)
-                       c.CampaignStatus == 6) // ACTIVE status
+                       (c.CampaignStatus == 5 || c.CampaignStatus == 6)) // AWAITING_PAYMENT or ACTIVE status
             .ToListAsync();
     }
 }

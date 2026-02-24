@@ -227,6 +227,16 @@ public class MilestoneService : IMilestoneService
         _logger.LogInformation("Created milestone {MilestoneNumber} for campaign {CampaignId}",
             request.MilestoneNumber, request.CampaignId);
 
+        // If this is the first milestone AND auto-pay is enabled, activate the campaign
+        // This allows the background service to process auto-payments immediately
+        if (request.MilestoneNumber == 1 && campaign.IsRecurringEnabled && campaign.CampaignStatus == 5)
+        {
+            campaign.CampaignStatus = 6; // Set to ACTIVE
+            await _campaignRepo.Update(campaign);
+            _logger.LogInformation("Campaign {CampaignId} activated because first milestone was created with auto-pay enabled",
+                campaign.Id);
+        }
+
         return created;
     }
 

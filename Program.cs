@@ -102,6 +102,10 @@ namespace inflan_api
             builder.Services.AddTransient<IPdfGenerationService, PdfGenerationService>();
             builder.Services.AddTransient<IEmailService, EmailService>();
 
+            // Register ScheduledPost services
+            builder.Services.AddTransient<IScheduledPostRepository, ScheduledPostRepository>();
+            builder.Services.AddTransient<IScheduledPostService, ScheduledPostService>();
+
             // Register Payment Module services
             builder.Services.AddMemoryCache();
             builder.Services.AddTransient<IPaymentMilestoneRepository, PaymentMilestoneRepository>();

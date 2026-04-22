@@ -35,6 +35,7 @@ namespace inflan_api.MyDBContext
         public DbSet<Withdrawal> Withdrawals { get; set; }
         public DbSet<InfluencerBankAccount> InfluencerBankAccounts { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
+        public DbSet<ScheduledPost> ScheduledPosts { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -322,6 +323,19 @@ namespace inflan_api.MyDBContext
 
             modelBuilder.Entity<PasswordResetToken>()
                 .HasIndex(t => t.UserId);
+
+            // ScheduledPost → Campaign
+            modelBuilder.Entity<ScheduledPost>()
+                .HasOne(sp => sp.Campaign)
+                .WithMany()
+                .HasForeignKey(sp => sp.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<ScheduledPost>()
+                .HasIndex(sp => sp.InfluencerId);
+
+            modelBuilder.Entity<ScheduledPost>()
+                .HasIndex(sp => sp.ScheduledAt);
         }
 
     }

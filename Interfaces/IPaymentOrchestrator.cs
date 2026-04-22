@@ -72,11 +72,25 @@ public interface IPaymentOrchestrator
 
 public class BrandOutstandingBalanceDto
 {
+    // Legacy aggregate fields (kept for backward compatibility)
     public long OverdueAmountInPence { get; set; }
     public long TotalRemainingInPence { get; set; }
     public long TotalPaidInPence { get; set; }
     public bool HasOverdueMilestones { get; set; }
     public int OverdueMilestoneCount { get; set; }
+
+    // Paid breakdown — sourced from milestones in PAID status across brand's campaigns.
+    public long PaidBaseInPence { get; set; }
+    public long PaidCommissionInPence { get; set; }
+    public long PaidTotalInPence { get; set; }
+    public int PaidMilestoneCount { get; set; }
+
+    // Pending breakdown — sourced from unpaid milestones of campaigns where booking is
+    // accepted, contract signed, and signature approved (i.e., campaign is payable).
+    public long PendingBaseInPence { get; set; }
+    public long PendingCommissionInPence { get; set; }
+    public long PendingTotalInPence { get; set; }
+    public int PendingMilestoneCount { get; set; }
 }
 
 public class PaymentVerificationResult

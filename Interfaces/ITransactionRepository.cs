@@ -11,4 +11,5 @@ public interface ITransactionRepository
     Task<Transaction?> GetByGatewayPaymentIdAsync(string gatewayPaymentId);
     Task<List<Transaction>> GetByCampaignIdAsync(int campaignId);
     Task<List<Transaction>> GetByUserIdAsync(int userId, int page = 1, int pageSize = 20);
+    Task<List<Transaction>> GetCompletedByUserIdAsync(int userId);
 }

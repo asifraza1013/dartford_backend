@@ -44,5 +44,13 @@ namespace inflan_api.Models
         [MaxLength(255)]
         public string? StripeCustomerId { get; set; }
 
+        public bool IsEmailVerified { get; set; } = false;
+        public DateTime? EmailVerifiedAt { get; set; }
+
+        [MaxLength(128)]
+        public string? VerificationCodeHash { get; set; }
+        public DateTime? VerificationExpiresAt { get; set; }
+        public int VerificationAttempts { get; set; } = 0;
+        public DateTime? VerificationLastSentAt { get; set; }
     }
 }

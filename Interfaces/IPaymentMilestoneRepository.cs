@@ -6,6 +6,7 @@ public interface IPaymentMilestoneRepository
 {
     Task<PaymentMilestone?> GetByIdAsync(int id);
     Task<List<PaymentMilestone>> GetByCampaignIdAsync(int campaignId);
+    Task<List<PaymentMilestone>> GetByCampaignIdsAsync(IEnumerable<int> campaignIds);
     Task<List<PaymentMilestone>> GetPendingMilestonesAsync(DateTime dueDate);
     Task<List<PaymentMilestone>> GetOverdueMilestonesAsync();
     Task<List<PaymentMilestone>> GetUpcomingByInfluencerIdAsync(int influencerId);

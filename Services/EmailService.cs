@@ -855,4 +855,69 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(influencerEmail, subject, body);
     }
+
+    public async Task SendVerificationCodeAsync(string toEmail, string recipientName, string code, int expiresInMinutes)
+    {
+        var subject = "Verify your email to complete your Inflan registration";
+        var displayName = string.IsNullOrWhiteSpace(recipientName) ? "there" : recipientName;
+
+        var content = $@"
+            <p style=""margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                Thanks for joining Inflan! Use the code below to verify your email address and finish creating your account.
+            </p>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 32px 0;"">
+                <tr>
+                    <td align=""center"">
+                        <div style=""display: inline-block; padding: 20px 32px; background-color: #F0F7FF; border: 1px solid #DDE7FF; border-radius: 12px;"">
+                            <p style=""margin: 0 0 8px 0; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Your verification code</p>
+                            <p style=""margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 10px; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{code}</p>
+                        </div>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 0 0 8px 0; font-size: 14px; line-height: 1.6; color: #667085; font-family: 'Inter', Arial, sans-serif;"">
+                This code expires in {expiresInMinutes} minutes. If you didn't create an Inflan account, you can safely ignore this email.
+            </p>";
+
+        var body = GetEmailTemplate(
+            "Verify your email",
+            $"Hi {displayName},",
+            content
+        );
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendPasswordResetAsync(string toEmail, string recipientName, string resetUrl, int expiresInMinutes)
+    {
+        var subject = "Reset your Inflan password";
+        var displayName = string.IsNullOrWhiteSpace(recipientName) ? "there" : recipientName;
+
+        var content = $@"
+            <p style=""margin: 0 0 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                We received a request to reset the password for your Inflan account. Click the button below to choose a new password.
+            </p>
+
+            <div style=""background-color: #FFFBEB; border-left: 4px solid #F59E0B; padding: 16px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0; font-size: 14px; line-height: 1.5; color: #92400E; font-family: 'Inter', Arial, sans-serif;"">
+                    <strong>⏰ This link expires in {expiresInMinutes} minutes.</strong> For your security, it can only be used once.
+                </p>
+            </div>
+
+            <p style=""margin: 20px 0 0 0; font-size: 14px; line-height: 1.6; color: #667085; font-family: 'Inter', Arial, sans-serif;"">
+                If you didn't request a password reset, you can safely ignore this email — your password won't change.
+            </p>";
+
+        var body = GetEmailTemplate(
+            "Reset your password",
+            $"Hi {displayName},",
+            content,
+            "Reset Password",
+            resetUrl
+        );
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
 }

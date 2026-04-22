@@ -326,11 +326,24 @@ public class PaymentModuleController : ControllerBase
         var balanceInfo = await _paymentOrchestrator.GetBrandOutstandingBalanceDetailedAsync(userId);
         return Ok(new
         {
-            outstandingAmountInPence = balanceInfo.OverdueAmountInPence, // Only overdue milestones
-            totalRemainingInPence = balanceInfo.TotalRemainingInPence,   // All unpaid milestones
+            // Legacy aggregate fields
+            outstandingAmountInPence = balanceInfo.OverdueAmountInPence,
+            totalRemainingInPence = balanceInfo.TotalRemainingInPence,
             totalPaidInPence = balanceInfo.TotalPaidInPence,
             hasOverdueMilestones = balanceInfo.HasOverdueMilestones,
-            overdueMilestoneCount = balanceInfo.OverdueMilestoneCount
+            overdueMilestoneCount = balanceInfo.OverdueMilestoneCount,
+
+            // Paid breakdown
+            paidBaseInPence = balanceInfo.PaidBaseInPence,
+            paidCommissionInPence = balanceInfo.PaidCommissionInPence,
+            paidTotalInPence = balanceInfo.PaidTotalInPence,
+            paidMilestoneCount = balanceInfo.PaidMilestoneCount,
+
+            // Pending breakdown
+            pendingBaseInPence = balanceInfo.PendingBaseInPence,
+            pendingCommissionInPence = balanceInfo.PendingCommissionInPence,
+            pendingTotalInPence = balanceInfo.PendingTotalInPence,
+            pendingMilestoneCount = balanceInfo.PendingMilestoneCount
         });
     }
 

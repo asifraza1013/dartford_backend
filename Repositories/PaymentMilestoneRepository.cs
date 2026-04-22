@@ -31,6 +31,17 @@ public class PaymentMilestoneRepository : IPaymentMilestoneRepository
             .ToListAsync();
     }
 
+    public async Task<List<PaymentMilestone>> GetByCampaignIdsAsync(IEnumerable<int> campaignIds)
+    {
+        var ids = campaignIds.ToList();
+        if (ids.Count == 0)
+            return new List<PaymentMilestone>();
+
+        return await _context.PaymentMilestones
+            .Where(m => ids.Contains(m.CampaignId))
+            .ToListAsync();
+    }
+
     public async Task<List<PaymentMilestone>> GetPendingMilestonesAsync(DateTime dueDate)
     {
         return await _context.PaymentMilestones

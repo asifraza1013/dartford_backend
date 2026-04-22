@@ -70,4 +70,12 @@ public class TransactionRepository : ITransactionRepository
             .Take(pageSize)
             .ToListAsync();
     }
+
+    public async Task<List<Transaction>> GetCompletedByUserIdAsync(int userId)
+    {
+        return await _context.Transactions
+            .Where(t => t.UserId == userId
+                        && t.TransactionStatus == (int)Utils.PaymentStatus.COMPLETED)
+            .ToListAsync();
+    }
 }

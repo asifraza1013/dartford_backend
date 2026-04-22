@@ -56,4 +56,14 @@ public interface IEmailService
     /// Sends email notification to influencer when a milestone payment is released to their balance
     /// </summary>
     Task SendPaymentReleasedAsync(string influencerEmail, string influencerName, long amountInPence, string currency, string campaignName, int milestoneNumber);
+
+    /// <summary>
+    /// Sends a 6-digit email verification code to a newly registered user.
+    /// </summary>
+    Task SendVerificationCodeAsync(string toEmail, string recipientName, string code, int expiresInMinutes);
+
+    /// <summary>
+    /// Sends a password reset link to the user with a time-limited token.
+    /// </summary>
+    Task SendPasswordResetAsync(string toEmail, string recipientName, string resetUrl, int expiresInMinutes);
 }

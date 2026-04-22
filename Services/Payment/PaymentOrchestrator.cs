@@ -1009,26 +1009,107 @@ public class PaymentOrchestrator : IPaymentOrchestrator
 
     public async Task<BrandOutstandingBalanceDto> GetBrandOutstandingBalanceDetailedAsync(int brandId)
     {
-        var campaigns = await _campaignRepo.GetCampaignsByBrandId(brandId);
-        var activeCampaigns = campaigns.Where(c => c.CampaignStatus != (int)CampaignStatus.CANCELLED).ToList();
-
-        // Get all overdue milestones for this brand
-        var overdueMilestones = await _milestoneRepo.GetOverdueMilestonesAsync();
-        var brandOverdueMilestones = overdueMilestones
-            .Where(m => m.Campaign?.BrandId == brandId)
+        var campaigns = (await _campaignRepo.GetCampaignsByBrandId(brandId)).ToList();
+        var nonCancelledCampaigns = campaigns
+            .Where(c => c.CampaignStatus != (int)CampaignStatus.CANCELLED)
             .ToList();
 
-        var overdueAmount = brandOverdueMilestones.Sum(m => m.AmountInPence + m.PlatformFeeInPence);
-        var totalRemaining = activeCampaigns.Sum(c => c.TotalAmountInPence - c.PaidAmountInPence);
-        var totalPaid = activeCampaigns.Sum(c => c.PaidAmountInPence);
+        // A campaign is "payable" once the booking is accepted, the brand has uploaded
+        // the signed contract, and the influencer has approved it. We check by timestamps
+        // OR by CampaignStatus >= AWAITING_PAYMENT, since the status transitions to
+        // AWAITING_PAYMENT on signature approval but some records may have the timestamp
+        // unset. Milestones may not yet exist (e.g. brand is still on the payment setup
+        // screen), so we derive pending from the campaign totals rather than milestone rows.
+        var payableCampaigns = nonCancelledCampaigns
+            .Where(c => (c.InfluencerAcceptedAt.HasValue
+                            && c.ContractSignedAt.HasValue
+                            && c.SignatureApprovedAt.HasValue)
+                        || c.CampaignStatus >= (int)CampaignStatus.AWAITING_PAYMENT)
+            .ToList();
+
+        // Effective campaign total — prefer the pence field, fall back to the legacy
+        // `Amount` float (which is set at campaign creation, before milestones exist).
+        long EffectiveTotal(Campaign c) =>
+            c.TotalAmountInPence > 0 ? c.TotalAmountInPence : (long)(c.Amount * 100);
+
+        // Paid breakdown — pull from completed transactions so we include both milestone
+        // and one-off full-amount payments. Campaign.PaidAmountInPence tracks the same
+        // base total but does not record the commission portion.
+        var completedTransactions = await _transactionRepo.GetCompletedByUserIdAsync(brandId);
+        var paidBase = completedTransactions.Sum(t => t.AmountInPence);
+        var paidCommission = completedTransactions.Sum(t => t.PlatformFeeInPence);
+        var paidTotal = paidBase + paidCommission;
+
+        // Pending base = remaining unpaid portion of each payable campaign.
+        var pendingBase = payableCampaigns.Sum(c => Math.Max(0, EffectiveTotal(c) - c.PaidAmountInPence));
+
+        // Pending commission — milestone rows are the authoritative source where they
+        // exist (commission may have been locked in at milestone-creation time). For the
+        // portion of a campaign that is not yet milestoned we apply the current brand
+        // platform-fee percentage to the remaining base.
+        var payableCampaignIds = payableCampaigns.Select(c => c.Id).ToHashSet();
+        var payableMilestones = (await _milestoneRepo.GetByCampaignIdsAsync(payableCampaignIds))
+            .Where(m => m.Status != (int)MilestoneStatus.CANCELLED)
+            .ToList();
+
+        var unpaidMilestones = payableMilestones
+            .Where(m => m.Status != (int)MilestoneStatus.PAID)
+            .ToList();
+
+        var milestoneCommissionPending = unpaidMilestones.Sum(m => m.PlatformFeeInPence);
+
+        // Amount already allocated to milestones for each payable campaign.
+        var allocatedByCampaign = payableMilestones
+            .GroupBy(m => m.CampaignId)
+            .ToDictionary(g => g.Key, g => g.Sum(m => m.AmountInPence));
+
+        long unallocatedBase = 0;
+        foreach (var c in payableCampaigns)
+        {
+            allocatedByCampaign.TryGetValue(c.Id, out var allocated);
+            var remaining = Math.Max(0, EffectiveTotal(c) - c.PaidAmountInPence);
+            var stillUnallocated = Math.Max(0, remaining - Math.Max(0, allocated - c.PaidAmountInPence));
+            unallocatedBase += stillUnallocated;
+        }
+
+        var brandFeePercent = await _settingsService.GetBrandPlatformFeePercentAsync();
+        var unallocatedCommission = (long)(unallocatedBase * brandFeePercent / 100m);
+
+        var pendingCommission = milestoneCommissionPending + unallocatedCommission;
+        var pendingTotal = pendingBase + pendingCommission;
+
+        // Overdue — pending milestones whose due date has passed.
+        var today = DateTime.UtcNow.Date;
+        var overdueMilestones = unpaidMilestones
+            .Where(m => m.DueDate < today)
+            .ToList();
+        var overdueAmount = overdueMilestones.Sum(m => m.AmountInPence + m.PlatformFeeInPence);
+
+        // Pending milestone count — for payable campaigns that have no milestones yet,
+        // count the campaign itself as one outstanding item so the UI can hint the brand
+        // still needs to configure the payment.
+        var pendingMilestoneCount = unpaidMilestones.Count
+            + payableCampaigns.Count(c => !allocatedByCampaign.ContainsKey(c.Id) && EffectiveTotal(c) > c.PaidAmountInPence);
 
         return new BrandOutstandingBalanceDto
         {
+            // Legacy aggregate fields (keep old API consumers working)
             OverdueAmountInPence = overdueAmount,
-            TotalRemainingInPence = totalRemaining,
-            TotalPaidInPence = totalPaid,
-            HasOverdueMilestones = brandOverdueMilestones.Count > 0,
-            OverdueMilestoneCount = brandOverdueMilestones.Count
+            TotalRemainingInPence = pendingTotal,
+            TotalPaidInPence = paidTotal,
+            HasOverdueMilestones = overdueMilestones.Count > 0,
+            OverdueMilestoneCount = overdueMilestones.Count,
+
+            // New breakdown fields
+            PaidBaseInPence = paidBase,
+            PaidCommissionInPence = paidCommission,
+            PaidTotalInPence = paidTotal,
+            PaidMilestoneCount = completedTransactions.Count,
+
+            PendingBaseInPence = pendingBase,
+            PendingCommissionInPence = pendingCommission,
+            PendingTotalInPence = pendingTotal,
+            PendingMilestoneCount = pendingMilestoneCount
         };
     }
 

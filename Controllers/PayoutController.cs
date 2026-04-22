@@ -182,6 +182,73 @@ public class PayoutController : ControllerBase
     }
 
     /// <summary>
+    /// Get influencer earnings summary: paid (net/commission/gross) + pending (base/commission/total).
+    /// Used by influencer dashboard earnings cards.
+    /// </summary>
+    [HttpGet("earnings-summary")]
+    public async Task<IActionResult> GetEarningsSummary()
+    {
+        var userId = GetCurrentUserId();
+        var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+
+        // Paid — from InfluencerPayout rows where the brand has already paid (any state
+        // beyond PENDING_RELEASE). This mirrors the webhook's auto-release: a payout is
+        // created with Status = RELEASED at the moment of brand payment and only moves
+        // forward (PROCESSING → PAID).
+        var payouts = (await _payoutRepo.GetByInfluencerIdFilteredAsync(userId, new PaymentFilterDto
+            {
+                Page = 1,
+                PageSize = int.MaxValue
+            }))
+            .Items
+            .Where(p => p.Currency == userCurrency
+                        && p.Status != (int)PayoutStatus.PENDING_RELEASE
+                        && p.Status != (int)PayoutStatus.FAILED)
+            .ToList();
+
+        var paidNet = payouts.Sum(p => p.NetAmountInPence);
+        var paidCommission = payouts.Sum(p => p.PlatformFeeInPence);
+        var paidGross = payouts.Sum(p => p.GrossAmountInPence);
+
+        // Pending — sum of (CampaignTotal - PaidAmount) for campaigns the influencer
+        // has accepted. Use the legacy Amount (float) × 100 when TotalAmountInPence is
+        // 0 (happens before milestones are created).
+        var campaigns = (await _campaignRepo.GetCampaignsByInfluencerId(userId)).ToList();
+        var acceptedCampaigns = campaigns
+            .Where(c => c.CampaignStatus != (int)CampaignStatus.CANCELLED
+                        && c.CampaignStatus != (int)CampaignStatus.REJECTED
+                        && c.InfluencerAcceptedAt.HasValue
+                        && (c.Currency ?? userCurrency) == userCurrency)
+            .ToList();
+
+        long EffectiveTotal(Campaign c) =>
+            c.TotalAmountInPence > 0 ? c.TotalAmountInPence : (long)(c.Amount * 100);
+
+        var pendingGross = acceptedCampaigns.Sum(c => Math.Max(0, EffectiveTotal(c) - c.PaidAmountInPence));
+
+        var influencerFeePercent = await _settingsService.GetInfluencerPlatformFeePercentAsync();
+        var pendingCommission = (long)(pendingGross * influencerFeePercent / 100m);
+        var pendingNet = pendingGross - pendingCommission;
+
+        return Ok(new
+        {
+            currency = userCurrency,
+
+            // Paid breakdown (what the brand has already paid for work this influencer did)
+            paidNetInPence = paidNet,
+            paidCommissionInPence = paidCommission,
+            paidGrossInPence = paidGross,
+            paidPayoutCount = payouts.Count,
+
+            // Pending breakdown (accepted bookings not yet paid in full)
+            pendingNetInPence = pendingNet,
+            pendingCommissionInPence = pendingCommission,
+            pendingGrossInPence = pendingGross,
+            pendingCampaignCount = acceptedCampaigns.Count(c => EffectiveTotal(c) > c.PaidAmountInPence)
+        });
+    }
+
+    /// <summary>
     /// Get total released balance for influencer (available for withdrawal)
     /// </summary>
     [HttpGet("balance/released")]

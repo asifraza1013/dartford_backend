@@ -34,6 +34,7 @@ namespace inflan_api.MyDBContext
         public DbSet<PlatformSettings> PlatformSettings { get; set; }
         public DbSet<Withdrawal> Withdrawals { get; set; }
         public DbSet<InfluencerBankAccount> InfluencerBankAccounts { get; set; }
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -313,6 +314,14 @@ namespace inflan_api.MyDBContext
             modelBuilder.Entity<InfluencerBankAccount>()
                 .HasIndex(a => a.PaystackRecipientCode)
                 .IsUnique();
+
+            // PasswordResetToken indexes
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(t => t.Token)
+                .IsUnique();
+
+            modelBuilder.Entity<PasswordResetToken>()
+                .HasIndex(t => t.UserId);
         }
 
     }

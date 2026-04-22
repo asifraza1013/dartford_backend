@@ -34,7 +34,9 @@ namespace inflan_api.Data
                     UserType = (int)UserType.ADMIN,
                     Status = (int)Status.ACTIVE,
                     Currency = "GBP",
-                    Location = "GB"
+                    Location = "GB",
+                    IsEmailVerified = true,
+                    EmailVerifiedAt = DateTime.UtcNow
                 };
 
                 context.Users.Add(adminUser);

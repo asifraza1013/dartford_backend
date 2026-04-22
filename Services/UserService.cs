@@ -5,6 +5,8 @@ using inflan_api.Interfaces;
 using inflan_api.Models;
 using inflan_api.DTOs;
 using inflan_api.Utils;
+using inflan_api.MyDBContext;
+using Microsoft.EntityFrameworkCore;
 
 namespace inflan_api.Services
 {
@@ -13,12 +15,14 @@ namespace inflan_api.Services
         private readonly IUserRepository _userRepository;
         private readonly IInfluencerService _influencerService;
         private readonly IFollowerCountService _followerCountService;
+        private readonly InflanDBContext _dbContext;
 
-        public UserService(IUserRepository userRepository, IInfluencerService influencerService, IFollowerCountService followerCountService)
+        public UserService(IUserRepository userRepository, IInfluencerService influencerService, IFollowerCountService followerCountService, InflanDBContext dbContext)
         {
             _userRepository = userRepository;
             _influencerService = influencerService;
             _followerCountService = followerCountService;
+            _dbContext = dbContext;
         }
 
         public async Task<IEnumerable<User>> GetAllUsers()
@@ -354,6 +358,71 @@ namespace inflan_api.Services
             }
 
             return $"/uploads/{fileName}";
+        }
+
+        public async Task<PasswordResetToken> CreatePasswordResetTokenAsync(int userId, int expiresInMinutes)
+        {
+            // Invalidate any existing unused tokens for this user
+            var existing = await _dbContext.PasswordResetTokens
+                .Where(t => t.UserId == userId && !t.Used && t.ExpiresAt > DateTime.UtcNow)
+                .ToListAsync();
+
+            foreach (var t in existing)
+            {
+                t.Used = true;
+            }
+
+            var tokenValue = GenerateSecureToken();
+
+            var resetToken = new PasswordResetToken
+            {
+                UserId = userId,
+                Token = tokenValue,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(expiresInMinutes),
+                Used = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _dbContext.PasswordResetTokens.Add(resetToken);
+            await _dbContext.SaveChangesAsync();
+            return resetToken;
+        }
+
+        public async Task<PasswordResetToken?> GetValidPasswordResetTokenAsync(string token)
+        {
+            return await _dbContext.PasswordResetTokens
+                .FirstOrDefaultAsync(t =>
+                    t.Token == token &&
+                    !t.Used &&
+                    t.ExpiresAt > DateTime.UtcNow);
+        }
+
+        public async Task<bool> ResetPasswordAsync(string token, string newPassword)
+        {
+            var resetToken = await GetValidPasswordResetTokenAsync(token);
+            if (resetToken == null)
+                return false;
+
+            var user = await _userRepository.GetById(resetToken.UserId);
+            if (user == null)
+                return false;
+
+            user.Password = newPassword;
+            await _userRepository.Update(user);
+
+            resetToken.Used = true;
+            _dbContext.PasswordResetTokens.Update(resetToken);
+            await _dbContext.SaveChangesAsync();
+            return true;
+        }
+
+        private static string GenerateSecureToken()
+        {
+            var bytes = RandomNumberGenerator.GetBytes(48);
+            return Convert.ToBase64String(bytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
         }
 
     }

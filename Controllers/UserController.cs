@@ -52,6 +52,17 @@ namespace inflan_api.Controllers
                     code = Message.USER_NOT_FOUND
                 });
 
+            if (!user.IsEmailVerified)
+            {
+                return StatusCode(403, new
+                {
+                    message = MessageHelper.GetMessageText(Message.EMAIL_NOT_VERIFIED),
+                    code = MessageHelper.GetMessageCode(Message.EMAIL_NOT_VERIFIED),
+                    email = user.Email,
+                    requiresVerification = true
+                });
+            }
+
             int userType = user.UserType;
 
             if (userType == (int)UserType.BRAND)

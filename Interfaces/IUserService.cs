@@ -15,6 +15,8 @@ namespace inflan_api.Interfaces
         Task<bool> VerifyPasswordAsync(int userId, string password);
         Task<string> GenerateUniqueUsernameFromNameAsync(string name);
         Task<string?> SaveOrUpdateProfilePictureAsync(int userId, IFormFile? file);
-
+        Task<PasswordResetToken> CreatePasswordResetTokenAsync(int userId, int expiresInMinutes);
+        Task<PasswordResetToken?> GetValidPasswordResetTokenAsync(string token);
+        Task<bool> ResetPasswordAsync(string token, string newPassword);
     }
 }

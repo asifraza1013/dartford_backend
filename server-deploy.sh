@@ -32,15 +32,35 @@ if [ -z "${INFLAN_DEPLOY_REEXECED:-}" ]; then
   INFLAN_DEPLOY_REEXECED=1 exec "$0" "$@"
 fi
 
+# Helper: aggressively free APP_PORT. Re-used before launch because the build /
+# migrate phase can leave lingering dotnet helpers (dotnet ef, build server,
+# systemd restart, …) that re-grab the port between step 1 and step 4.
+free_port() {
+  sudo pkill -9 -f "dotnet.*inflan_api" 2>/dev/null || true
+  sudo pkill -9 -f "dotnet-ef|dotnet .*ef\\b" 2>/dev/null || true
+  sudo fuser -k "${APP_PORT}/tcp" 2>/dev/null || true
+  sleep 4
+}
+
+assert_port_free() {
+  if ss -ltn | grep -q ":${APP_PORT} "; then
+    echo "!!! Port ${APP_PORT} is still held. Listener + dotnets:"
+    sudo ss -ltnp | grep ":${APP_PORT} " || true
+    sudo pgrep -af dotnet | head -10 || true
+    return 1
+  fi
+  return 0
+}
+
 # --- 1. Stop the existing API -----------------------------------------------
 echo "=== Stopping existing API ==="
-sudo pkill -9 -f "dotnet.*inflan_api" 2>/dev/null || true
-sudo fuser -k "${APP_PORT}/tcp" 2>/dev/null || true
-sleep 3
-if ss -ltn | grep -q ":${APP_PORT} "; then
-  echo "!!! Port ${APP_PORT} is still held after kill. Aborting."
-  sudo ss -ltnp | grep ":${APP_PORT} " || true
-  exit 1
+free_port
+if ! assert_port_free; then
+  # One more aggressive pass, then fail loudly.
+  free_port
+  if ! assert_port_free; then
+    exit 1
+  fi
 fi
 echo "Port ${APP_PORT} is free."
 
@@ -53,6 +73,16 @@ echo "=== Applying EF migrations ==="
 ConnectionStrings__DefaultConnection="$DB_CONN" dotnet ef database update
 
 # --- 4. Launch the API ------------------------------------------------------
+# Re-free the port — the build/migrate phase can resurrect helpers that claim
+# 8080 (dotnet build server, EF design-time host, a systemd auto-restart, etc.).
+# Without this second pass the launch races against them.
+echo "=== Re-checking port ${APP_PORT} before launch ==="
+free_port
+if ! assert_port_free; then
+  echo "!!! Port ${APP_PORT} won't release — aborting instead of failing to bind."
+  exit 1
+fi
+
 echo "=== Launching API on :${APP_PORT} ==="
 : > app.log
 nohup env \

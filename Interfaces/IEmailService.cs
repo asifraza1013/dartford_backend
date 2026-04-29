@@ -63,6 +63,23 @@ public interface IEmailService
     Task SendVerificationCodeAsync(string toEmail, string recipientName, string code, int expiresInMinutes);
 
     /// <summary>
+    /// Sends a milestone payment reminder to the brand. <paramref name="daysUntilDue"/>
+    /// is the count of days until the milestone's due date — pass a non-positive
+    /// value (e.g. <c>-1</c>) to render the "overdue" variant of the email.
+    /// </summary>
+    Task SendMilestoneReminderAsync(
+        string brandEmail,
+        string brandName,
+        int campaignId,
+        string projectName,
+        int milestoneNumber,
+        long amountInPence,
+        long platformFeeInPence,
+        string currency,
+        DateTime dueDate,
+        int daysUntilDue);
+
+    /// <summary>
     /// Sends a password reset link to the user with a time-limited token.
     /// </summary>
     Task SendPasswordResetAsync(string toEmail, string recipientName, string resetUrl, int expiresInMinutes);

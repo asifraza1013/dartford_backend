@@ -38,6 +38,14 @@ public class PaymentMilestone
 
     public DateTime? UpdatedAt { get; set; }
 
+    // Reminder bookkeeping — set by MilestoneReminderBackgroundService when each
+    // pre-due-date reminder or the overdue notice has been dispatched, so the
+    // sweep doesn't re-spam on every tick.
+    public DateTime? Reminder7DaysSentAt { get; set; }
+    public DateTime? Reminder3DaysSentAt { get; set; }
+    public DateTime? Reminder1DaySentAt { get; set; }
+    public DateTime? OverdueNoticeSentAt { get; set; }
+
     // Navigation properties
     [ForeignKey("CampaignId")]
     public virtual Campaign? Campaign { get; set; }

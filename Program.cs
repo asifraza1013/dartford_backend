@@ -41,6 +41,10 @@ namespace inflan_api
             builder.Services.Configure<MilestonePaymentConfig>(
                 builder.Configuration.GetSection(MilestonePaymentConfig.SectionName));
 
+            // Configure Milestone Reminder (pre-due + overdue notice) settings
+            builder.Services.Configure<MilestoneReminderConfig>(
+                builder.Configuration.GetSection(MilestoneReminderConfig.SectionName));
+
             // Configure file upload limits (25MB to allow for 20MB videos with overhead)
             builder.Services.Configure<FormOptions>(options =>
             {
@@ -159,6 +163,9 @@ namespace inflan_api
 
             // Register background service for milestone auto-payment
             builder.Services.AddHostedService<MilestonePaymentBackgroundService>();
+
+            // Register background service for milestone payment reminders + overdue notices
+            builder.Services.AddHostedService<MilestoneReminderBackgroundService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

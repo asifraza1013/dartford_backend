@@ -920,4 +920,122 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(toEmail, subject, body);
     }
+
+    public async Task SendMilestoneReminderAsync(
+        string brandEmail,
+        string brandName,
+        int campaignId,
+        string projectName,
+        int milestoneNumber,
+        long amountInPence,
+        long platformFeeInPence,
+        string currency,
+        DateTime dueDate,
+        int daysUntilDue)
+    {
+        var currencySymbol = currency.ToUpper() switch
+        {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "NGN" => "₦",
+            _ => currency
+        };
+
+        var totalAmount = (amountInPence + platformFeeInPence) / 100m;
+        var amountDisplay = $"{currencySymbol}{totalAmount:N2}";
+        var dueDateDisplay = dueDate.ToString("dddd, MMMM d, yyyy");
+
+        var isOverdue = daysUntilDue <= 0;
+
+        string title;
+        string subject;
+        string headlineText;
+        string headlineEmoji;
+        string headlineBg;
+        string headlineBorder;
+        string ctaText;
+        string urgencyLine;
+
+        if (isOverdue)
+        {
+            title = "Milestone Payment Overdue";
+            subject = $"Action Required: Payment overdue for \"{projectName}\"";
+            headlineText = "This milestone is now overdue";
+            headlineEmoji = "⚠️";
+            headlineBg = "#FEF3F2";
+            headlineBorder = "#F04438";
+            ctaText = "Pay Now";
+            urgencyLine =
+                $"This payment was due on {dueDateDisplay} and is currently outstanding. " +
+                "Please complete the payment as soon as possible to keep the campaign active.";
+        }
+        else
+        {
+            title = "Milestone Payment Reminder";
+            subject = $"Reminder: Milestone payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")} — \"{projectName}\"";
+            headlineText = $"Payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
+            headlineEmoji = "🔔";
+            headlineBg = "#FFFAEB";
+            headlineBorder = "#F79009";
+            ctaText = "Review & Pay";
+            urgencyLine =
+                $"This milestone is due on {dueDateDisplay}. " +
+                "Please complete the payment before the due date to avoid disruption to the campaign.";
+        }
+
+        var content = $@"
+            <div style=""background-color: {headlineBg}; border-left: 4px solid {headlineBorder}; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    {headlineEmoji} {headlineText}
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    {urgencyLine}
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName} (#{campaignId})</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Milestone</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{milestoneNumber}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Due Date</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: {(isOverdue ? "#B42318" : "#101828")}; font-family: 'Inter', Arial, sans-serif;"">{dueDateDisplay}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 16px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount Due</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #3B71FE; font-family: 'Inter', Arial, sans-serif;"">{amountDisplay}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>";
+
+        var dashboardUrl = $"https://dev.inflan.com/brand/dashboard/bookings/milestones?campaignId={campaignId}";
+        var body = GetEmailTemplate(
+            title,
+            $"Dear {brandName},",
+            content,
+            ctaText,
+            dashboardUrl
+        );
+
+        await SendEmailAsync(brandEmail, subject, body);
+    }
 }

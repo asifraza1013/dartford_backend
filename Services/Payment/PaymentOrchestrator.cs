@@ -328,6 +328,15 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         // Update campaign paid amount
         campaign.PaidAmountInPence += transaction.AmountInPence;
 
+        // Backfill TotalAmountInPence from the legacy Amount field when it hasn't been
+        // populated yet (one-time full payments skip MilestoneService, which is the
+        // only place that normally sets TotalAmountInPence). Without this, the
+        // "fully paid" check below silently degrades to PARTIAL.
+        if (campaign.TotalAmountInPence <= 0 && campaign.Amount > 0)
+        {
+            campaign.TotalAmountInPence = (long)(campaign.Amount * 100);
+        }
+
         // If milestone payment, mark specific milestone as paid
         if (transaction.MilestoneId.HasValue)
         {
@@ -343,8 +352,8 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         else
         {
             // Full payment - mark ALL pending milestones as paid
-            var milestones = await _milestoneRepo.GetByCampaignIdAsync(transaction.CampaignId);
-            foreach (var milestone in milestones)
+            var pendingMilestones = await _milestoneRepo.GetByCampaignIdAsync(transaction.CampaignId);
+            foreach (var milestone in pendingMilestones)
             {
                 if (milestone.Status == (int)MilestoneStatus.PENDING || milestone.Status == (int)MilestoneStatus.OVERDUE)
                 {
@@ -355,7 +364,7 @@ public class PaymentOrchestrator : IPaymentOrchestrator
                 }
             }
             _logger.LogInformation("Full payment: Marked all {Count} milestones as paid for campaign {CampaignId}",
-                milestones.Count, transaction.CampaignId);
+                pendingMilestones.Count, transaction.CampaignId);
         }
 
         // Activate campaign after first payment (milestone or one-time)
@@ -365,17 +374,35 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             _logger.LogInformation("Campaign {CampaignId} activated after payment", campaign.Id);
         }
 
-        // Update payment status based on paid amount
-        if (campaign.PaidAmountInPence >= campaign.TotalAmountInPence && campaign.TotalAmountInPence > 0)
+        // Determine "fully paid" from two angles:
+        //   1. Amount-based: PaidAmountInPence >= TotalAmountInPence (newer rows
+        //      where the pence aggregates are reliable).
+        //   2. Milestone-based: every milestone is in the PAID state.
+        //
+        // The milestone fallback rescues legacy campaigns where the older
+        // `Amount` field is the only authoritative total — without it the
+        // amount-based check would silently degrade to PARTIAL forever and
+        // the influencer's Bookings page would keep displaying "Partial"
+        // even though Earnings already paid out the funds.
+        var fullyPaidByAmount =
+            campaign.TotalAmountInPence > 0 &&
+            campaign.PaidAmountInPence >= campaign.TotalAmountInPence;
+
+        var allMilestones = await _milestoneRepo.GetByCampaignIdAsync(campaign.Id);
+        var fullyPaidByMilestones =
+            allMilestones.Count > 0 &&
+            allMilestones.All(m => m.Status == (int)MilestoneStatus.PAID);
+
+        if (fullyPaidByAmount || fullyPaidByMilestones)
         {
-            // Fully paid
             campaign.PaymentStatus = (int)PaymentStatus.COMPLETED;
             campaign.PaymentCompletedAt = DateTime.UtcNow;
-            _logger.LogInformation("Campaign {CampaignId} fully paid", campaign.Id);
+            _logger.LogInformation(
+                "Campaign {CampaignId} fully paid (amount={ByAmount}, milestones={ByMilestones})",
+                campaign.Id, fullyPaidByAmount, fullyPaidByMilestones);
         }
         else if (campaign.PaidAmountInPence > 0)
         {
-            // Partially paid (some milestones paid)
             campaign.PaymentStatus = (int)PaymentStatus.PARTIAL;
             _logger.LogInformation("Campaign {CampaignId} partially paid: {Paid}/{Total}",
                 campaign.Id, campaign.PaidAmountInPence, campaign.TotalAmountInPence);

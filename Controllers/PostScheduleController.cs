@@ -75,6 +75,9 @@ public class PostScheduleController : ControllerBase
             return BadRequest(new { message = "The campaign must be accepted before scheduling posts." });
         }
 
+        var rangeError = ValidateScheduledAtAgainstCampaign(dto.ScheduledAt, campaign);
+        if (rangeError != null) return BadRequest(new { message = rangeError });
+
         var post = new ScheduledPost
         {
             InfluencerId = userId,
@@ -115,6 +118,15 @@ public class PostScheduleController : ControllerBase
         if (dto.ScheduledAt.HasValue) post.ScheduledAt = dto.ScheduledAt.Value;
         if (dto.Platforms != null) post.Platforms = NormalizePlatforms(dto.Platforms);
         if (dto.Status.HasValue) post.Status = dto.Status.Value;
+
+        // Whether the campaign or the date changed (or both), the new
+        // (scheduledAt, campaign) pair must satisfy the campaign's window.
+        var validationCampaign = await _campaignRepo.GetById(post.CampaignId);
+        if (validationCampaign != null)
+        {
+            var rangeError = ValidateScheduledAtAgainstCampaign(post.ScheduledAt, validationCampaign);
+            if (rangeError != null) return BadRequest(new { message = rangeError });
+        }
 
         var updated = await _scheduledPostService.UpdateAsync(post);
         var reloaded = await _scheduledPostService.GetByIdAsync(updated.Id);
@@ -178,6 +190,29 @@ public class PostScheduleController : ControllerBase
             platforms.Add(new { key = "facebook", label = "Facebook", handle = influencer.Facebook });
 
         return Ok(platforms);
+    }
+
+    /// <summary>
+    /// Returns an error message when <paramref name="scheduledAt"/> falls outside
+    /// the campaign's start/end window, or null when the date is acceptable.
+    /// We compare on date-only so an end-of-day post on the campaign's last day
+    /// is still allowed regardless of timezone shifts.
+    /// </summary>
+    private static string? ValidateScheduledAtAgainstCampaign(DateTime scheduledAt, Campaign campaign)
+    {
+        var scheduledDate = DateOnly.FromDateTime(scheduledAt.ToUniversalTime());
+
+        if (scheduledDate < campaign.CampaignStartDate)
+        {
+            return $"Scheduled date is before the campaign's start date ({campaign.CampaignStartDate:yyyy-MM-dd}).";
+        }
+
+        if (scheduledDate > campaign.CampaignEndDate)
+        {
+            return $"Scheduled date is after the campaign's end date ({campaign.CampaignEndDate:yyyy-MM-dd}).";
+        }
+
+        return null;
     }
 
     private static List<string> NormalizePlatforms(IEnumerable<string> platforms)

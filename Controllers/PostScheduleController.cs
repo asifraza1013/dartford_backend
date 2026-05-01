@@ -33,14 +33,21 @@ public class PostScheduleController : ControllerBase
         return claim != null ? int.Parse(claim.Value) : 0;
     }
 
-    /// <summary>List scheduled posts for the current influencer, optionally filtered by date range.</summary>
+    /// <summary>
+    /// List scheduled posts for the current influencer, optionally filtered by
+    /// date range and a free-text query (matched ILIKE against title,
+    /// description, and the linked campaign's project name).
+    /// </summary>
     [HttpGet]
-    public async Task<IActionResult> List([FromQuery] DateTime? from = null, [FromQuery] DateTime? to = null)
+    public async Task<IActionResult> List(
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null,
+        [FromQuery(Name = "q")] string? query = null)
     {
         var userId = GetCurrentUserId();
         if (userId == 0) return Unauthorized();
 
-        var posts = await _scheduledPostService.GetByInfluencerIdAsync(userId, from, to);
+        var posts = await _scheduledPostService.GetByInfluencerIdAsync(userId, from, to, query);
         return Ok(posts.Select(Serialize));
     }
 

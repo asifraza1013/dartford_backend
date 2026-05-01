@@ -14,8 +14,8 @@ public class ScheduledPostService : IScheduledPostService
 
     public Task<ScheduledPost?> GetByIdAsync(int id) => _repo.GetByIdAsync(id);
 
-    public Task<List<ScheduledPost>> GetByInfluencerIdAsync(int influencerId, DateTime? from = null, DateTime? to = null)
-        => _repo.GetByInfluencerIdAsync(influencerId, from, to);
+    public Task<List<ScheduledPost>> GetByInfluencerIdAsync(int influencerId, DateTime? from = null, DateTime? to = null, string? query = null)
+        => _repo.GetByInfluencerIdAsync(influencerId, from, to, query);
 
     public Task<ScheduledPost> CreateAsync(ScheduledPost post) => _repo.CreateAsync(post);
 

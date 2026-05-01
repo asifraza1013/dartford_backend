@@ -21,19 +21,32 @@ public class ScheduledPostRepository : IScheduledPostRepository
             .FirstOrDefaultAsync(sp => sp.Id == id);
     }
 
-    public async Task<List<ScheduledPost>> GetByInfluencerIdAsync(int influencerId, DateTime? from = null, DateTime? to = null)
+    public async Task<List<ScheduledPost>> GetByInfluencerIdAsync(int influencerId, DateTime? from = null, DateTime? to = null, string? query = null)
     {
-        var query = _context.ScheduledPosts
+        var posts = _context.ScheduledPosts
             .Include(sp => sp.Campaign)
             .Where(sp => sp.InfluencerId == influencerId);
 
         if (from.HasValue)
-            query = query.Where(sp => sp.ScheduledAt >= from.Value);
+            posts = posts.Where(sp => sp.ScheduledAt >= from.Value);
 
         if (to.HasValue)
-            query = query.Where(sp => sp.ScheduledAt < to.Value);
+            posts = posts.Where(sp => sp.ScheduledAt < to.Value);
 
-        return await query
+        if (!string.IsNullOrWhiteSpace(query))
+        {
+            // Case-insensitive ILIKE against the post's title / description and the
+            // joined campaign's project name. EF Core translates EF.Functions.ILike
+            // to PostgreSQL's native ILIKE so the filter runs at the DB layer.
+            var pattern = $"%{query.Trim()}%";
+            posts = posts.Where(sp =>
+                EF.Functions.ILike(sp.Title, pattern) ||
+                (sp.Description != null && EF.Functions.ILike(sp.Description, pattern)) ||
+                (sp.Campaign != null && sp.Campaign.ProjectName != null &&
+                    EF.Functions.ILike(sp.Campaign.ProjectName, pattern)));
+        }
+
+        return await posts
             .OrderBy(sp => sp.ScheduledAt)
             .ToListAsync();
     }

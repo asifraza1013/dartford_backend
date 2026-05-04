@@ -80,6 +80,20 @@ public interface IEmailService
         int daysUntilDue);
 
     /// <summary>
+    /// Reminder fired ~30 minutes before a scheduled post goes live, so the
+    /// influencer has time to prep / publish the asset.
+    /// </summary>
+    Task SendScheduledPostReminderAsync(
+        string influencerEmail,
+        string influencerName,
+        int campaignId,
+        string? projectName,
+        string postTitle,
+        DateTime scheduledAt,
+        int minutesUntilLive,
+        IEnumerable<string> platforms);
+
+    /// <summary>
     /// Sends a password reset link to the user with a time-limited token.
     /// </summary>
     Task SendPasswordResetAsync(string toEmail, string recipientName, string resetUrl, int expiresInMinutes);

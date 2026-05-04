@@ -36,6 +36,11 @@ public class ScheduledPost
 
     public DateTime? UpdatedAt { get; set; }
 
+    // Set by ScheduledPostReminderBackgroundService once the "post goes live
+    // soon" reminder has been dispatched, so each post is reminded exactly
+    // once even if the sweep runs every 5 minutes.
+    public DateTime? ReminderSentAt { get; set; }
+
     [ForeignKey("CampaignId")]
     public virtual Campaign? Campaign { get; set; }
 }

@@ -45,6 +45,11 @@ namespace inflan_api
             builder.Services.Configure<MilestoneReminderConfig>(
                 builder.Configuration.GetSection(MilestoneReminderConfig.SectionName));
 
+            // Configure Scheduled-post reminder (notify influencer ~30m before
+            // their post goes live)
+            builder.Services.Configure<ScheduledPostReminderConfig>(
+                builder.Configuration.GetSection(ScheduledPostReminderConfig.SectionName));
+
             // Configure file upload limits (25MB to allow for 20MB videos with overhead)
             builder.Services.Configure<FormOptions>(options =>
             {
@@ -166,6 +171,9 @@ namespace inflan_api
 
             // Register background service for milestone payment reminders + overdue notices
             builder.Services.AddHostedService<MilestoneReminderBackgroundService>();
+
+            // Register background service for "post going live soon" reminders
+            builder.Services.AddHostedService<ScheduledPostReminderBackgroundService>();
 
             builder.Services.AddAuthentication(cfg => {
                 cfg.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;

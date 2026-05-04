@@ -1038,4 +1038,85 @@ public class EmailService : IEmailService
 
         await SendEmailAsync(brandEmail, subject, body);
     }
+
+    public async Task SendScheduledPostReminderAsync(
+        string influencerEmail,
+        string influencerName,
+        int campaignId,
+        string? projectName,
+        string postTitle,
+        DateTime scheduledAt,
+        int minutesUntilLive,
+        IEnumerable<string> platforms)
+    {
+        var displayName = string.IsNullOrWhiteSpace(influencerName) ? "there" : influencerName;
+        var platformsLabel = (platforms ?? Enumerable.Empty<string>())
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Select(p => char.ToUpper(p[0]) + p.Substring(1).ToLowerInvariant())
+            .ToList();
+        var platformsText = platformsLabel.Count > 0 ? string.Join(", ", platformsLabel) : "—";
+
+        var localised = scheduledAt.ToString("dddd, MMMM d 'at' h:mm tt 'UTC'");
+        var minutesLabel = minutesUntilLive > 0
+            ? $"{minutesUntilLive} minute{(minutesUntilLive == 1 ? "" : "s")}"
+            : "any moment";
+
+        var subject = string.IsNullOrWhiteSpace(projectName)
+            ? $"Heads up — your post goes live in {minutesLabel}"
+            : $"Heads up — \"{projectName}\" post goes live in {minutesLabel}";
+
+        var content = $@"
+            <div style=""background-color: #FFFAEB; border-left: 4px solid #F79009; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    🕒 Your scheduled post goes live in {minutesLabel}
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    Final check on the asset and caption — we'll see you online.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Post</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{postTitle}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName ?? "—"} (#{campaignId})</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Goes live</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{localised}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Platforms</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{platformsText}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/post-schedule";
+        var body = GetEmailTemplate(
+            "Your post is going live soon",
+            $"Hi {displayName},",
+            content,
+            "Open my schedule",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
 }

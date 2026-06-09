@@ -166,33 +166,78 @@ public class MilestoneService : IMilestoneService
     public async Task<List<CampaignWithMilestonesDto>> GetBrandCampaignsWithMilestonesAsync(int brandId)
     {
         var campaigns = await _campaignRepo.GetCampaignsByBrandId(brandId);
+        var brandFeePercent = await _settingsService.GetBrandPlatformFeePercentAsync();
         var result = new List<CampaignWithMilestonesDto>();
 
         foreach (var campaign in campaigns)
         {
             var milestones = await _milestoneRepo.GetByCampaignIdAsync(campaign.Id);
 
+            var dtos = milestones.Select(m => new MilestoneDto
+            {
+                Id = m.Id,
+                CampaignId = m.CampaignId,
+                MilestoneNumber = m.MilestoneNumber,
+                AmountInPence = m.AmountInPence,
+                PlatformFeeInPence = m.PlatformFeeInPence,
+                DueDate = m.DueDate,
+                Status = m.Status,
+                PaidAt = m.PaidAt
+            }).ToList();
+
+            // Full-payment campaigns have no milestones, and milestone campaigns may not be
+            // scheduled yet. In both cases the brand still owes the remaining amount, which
+            // the outstanding-balance card counts. Add a campaign-level entry (MilestoneNumber
+            // = 0) for any remaining amount not already covered by pending milestones, so this
+            // list matches that card. Due date falls back to the campaign end date.
+            if (IsPayable(campaign))
+            {
+                var effectiveTotal = campaign.TotalAmountInPence > 0
+                    ? campaign.TotalAmountInPence
+                    : (long)(campaign.Amount * 100);
+                var remaining = Math.Max(0, effectiveTotal - campaign.PaidAmountInPence);
+                var coveredByPending = milestones
+                    .Where(m => m.Status == (int)MilestoneStatus.PENDING || m.Status == (int)MilestoneStatus.OVERDUE)
+                    .Sum(m => m.AmountInPence);
+                var uncovered = Math.Max(0, remaining - coveredByPending);
+
+                if (uncovered > 0)
+                {
+                    dtos.Add(new MilestoneDto
+                    {
+                        Id = -campaign.Id, // negative id => synthetic campaign-level entry
+                        CampaignId = campaign.Id,
+                        MilestoneNumber = 0, // 0 => full payment / not yet scheduled
+                        AmountInPence = uncovered,
+                        PlatformFeeInPence = (long)(uncovered * brandFeePercent / 100m),
+                        DueDate = campaign.CampaignEndDate.ToDateTime(TimeOnly.MinValue),
+                        Status = (int)MilestoneStatus.PENDING,
+                        PaidAt = null
+                    });
+                }
+            }
+
             result.Add(new CampaignWithMilestonesDto
             {
                 CampaignId = campaign.Id,
                 ProjectName = campaign.ProjectName,
                 InfluencerName = campaign.Influencer?.Name,
-                Milestones = milestones.Select(m => new MilestoneDto
-                {
-                    Id = m.Id,
-                    CampaignId = m.CampaignId,
-                    MilestoneNumber = m.MilestoneNumber,
-                    AmountInPence = m.AmountInPence,
-                    PlatformFeeInPence = m.PlatformFeeInPence,
-                    DueDate = m.DueDate,
-                    Status = m.Status,
-                    PaidAt = m.PaidAt
-                }).ToList()
+                Milestones = dtos
             });
         }
 
         return result;
     }
+
+    // A campaign is "payable" (the brand owes money on it) once the booking is accepted,
+    // the contract is signed and approved, or it has otherwise reached AWAITING_PAYMENT.
+    // Mirrors PaymentOrchestrator.GetBrandOutstandingBalanceDetailedAsync.
+    private static bool IsPayable(Campaign c) =>
+        c.CampaignStatus != (int)CampaignStatus.CANCELLED
+        && ((c.InfluencerAcceptedAt.HasValue
+                && c.ContractSignedAt.HasValue
+                && c.SignatureApprovedAt.HasValue)
+            || c.CampaignStatus >= (int)CampaignStatus.AWAITING_PAYMENT);
 
     public async Task<PaymentMilestone> CreateMilestoneAsync(CreateMilestoneDto request)
     {

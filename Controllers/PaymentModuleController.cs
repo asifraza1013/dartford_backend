@@ -1,3 +1,4 @@
+using inflan_api.Attributes;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using inflan_api.Utils;
@@ -313,6 +314,31 @@ public class PaymentModuleController : ControllerBase
         {
             return NotFound(new { message = ex.Message });
         }
+    }
+
+    /// <summary>
+    /// Admin: re-sync a single campaign's payment state from its completed transactions.
+    /// Repairs campaigns whose status drifted (e.g. one-time full payments stuck at Partial).
+    /// </summary>
+    [HttpPost("admin/reconcile-payments/{campaignId}")]
+    [Authorize]
+    [AdminOnly]
+    public async Task<IActionResult> ReconcileCampaignPayment(int campaignId)
+    {
+        var changed = await _paymentOrchestrator.ReconcileCampaignPaymentAsync(campaignId);
+        return Ok(new { campaignId, changed });
+    }
+
+    /// <summary>
+    /// Admin: re-sync every campaign's payment state from completed transactions.
+    /// </summary>
+    [HttpPost("admin/reconcile-payments")]
+    [Authorize]
+    [AdminOnly]
+    public async Task<IActionResult> ReconcileAllPayments()
+    {
+        var (total, changed) = await _paymentOrchestrator.ReconcileAllCampaignPaymentsAsync();
+        return Ok(new { total, changed });
     }
 
     /// <summary>

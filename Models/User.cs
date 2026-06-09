@@ -44,6 +44,11 @@ namespace inflan_api.Models
         [MaxLength(255)]
         public string? StripeCustomerId { get; set; }
 
+        /// <summary>
+        /// Account creation timestamp. Used for registration-trend reporting.
+        /// </summary>
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
         public bool IsEmailVerified { get; set; } = false;
         public DateTime? EmailVerifiedAt { get; set; }
 

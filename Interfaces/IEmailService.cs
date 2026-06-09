@@ -80,6 +80,24 @@ public interface IEmailService
         int daysUntilDue);
 
     /// <summary>
+    /// Informational copy of a milestone payment reminder sent to the influencer awaiting the
+    /// payout (no "Pay Now" CTA). Pass a non-positive <paramref name="daysUntilDue"/> for the
+    /// overdue variant.
+    /// </summary>
+    Task SendMilestonePaymentNoticeToInfluencerAsync(
+        string toEmail,
+        string influencerName,
+        string brandName,
+        int campaignId,
+        string projectName,
+        int milestoneNumber,
+        long amountInPence,
+        long platformFeeInPence,
+        string currency,
+        DateTime dueDate,
+        int daysUntilDue);
+
+    /// <summary>
     /// Reminder fired ~30 minutes before a scheduled post goes live, so the
     /// influencer has time to prep / publish the asset.
     /// </summary>

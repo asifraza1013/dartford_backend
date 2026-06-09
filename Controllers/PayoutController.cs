@@ -107,6 +107,7 @@ public class PayoutController : ControllerBase
         [FromQuery] long? minAmount = null,
         [FromQuery] long? maxAmount = null,
         [FromQuery] int? campaignId = null,
+        [FromQuery] int? brandId = null,
         [FromQuery] int? status = null)
     {
         var userId = GetCurrentUserId();
@@ -119,6 +120,7 @@ public class PayoutController : ControllerBase
             MinAmount = minAmount,
             MaxAmount = maxAmount,
             CampaignId = campaignId,
+            BrandId = brandId,
             Status = status
         };
 
@@ -158,21 +160,15 @@ public class PayoutController : ControllerBase
     {
         var userId = GetCurrentUserId();
 
-        // Get user's currency based on location
+        // Currency is used only to label the response — brands and influencers are always
+        // matched within the same currency, so we no longer filter milestones by it (doing
+        // so previously hid legitimately-owed amounts from the influencer view).
         var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
 
-        // Get all unpaid milestones for this influencer's campaigns
+        // All unpaid (pending/overdue) milestones for this influencer's campaigns.
         var unpaidMilestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(userId);
 
-        // Filter milestones by the user's currency (based on campaign/transaction currency)
-        var filteredMilestones = unpaidMilestones.Where(m =>
-        {
-            // Get the campaign's currency (from the brand's location or transaction)
-            var campaignCurrency = m.Campaign?.Currency ?? userCurrency;
-            return campaignCurrency == userCurrency;
-        }).ToList();
-
-        var totalPending = filteredMilestones.Sum(m => m.AmountInPence);
+        var totalPending = unpaidMilestones.Sum(m => m.AmountInPence);
 
         return Ok(new
         {
@@ -213,12 +209,21 @@ public class PayoutController : ControllerBase
         // Pending — sum of (CampaignTotal - PaidAmount) for campaigns the influencer
         // has accepted. Use the legacy Amount (float) × 100 when TotalAmountInPence is
         // 0 (happens before milestones are created).
+        //
+        // This MUST use the same "payable" definition as the brand-side outstanding total
+        // (PaymentOrchestrator.GetBrandOutstandingBalanceDetailedAsync), otherwise the two
+        // dashboards disagree: a campaign counts once it's accepted + contract signed +
+        // signature approved, OR has reached AWAITING_PAYMENT (the status moves there on
+        // signature approval even when a timestamp is left unset). No currency filter —
+        // brands and influencers are always matched within the same currency, and filtering
+        // here previously hid legitimately-owed amounts from the influencer view.
         var campaigns = (await _campaignRepo.GetCampaignsByInfluencerId(userId)).ToList();
         var acceptedCampaigns = campaigns
             .Where(c => c.CampaignStatus != (int)CampaignStatus.CANCELLED
-                        && c.CampaignStatus != (int)CampaignStatus.REJECTED
-                        && c.InfluencerAcceptedAt.HasValue
-                        && (c.Currency ?? userCurrency) == userCurrency)
+                        && ((c.InfluencerAcceptedAt.HasValue
+                                && c.ContractSignedAt.HasValue
+                                && c.SignatureApprovedAt.HasValue)
+                            || c.CampaignStatus >= (int)CampaignStatus.AWAITING_PAYMENT))
             .ToList();
 
         long EffectiveTotal(Campaign c) =>
@@ -229,6 +234,19 @@ public class PayoutController : ControllerBase
         var influencerFeePercent = await _settingsService.GetInfluencerPlatformFeePercentAsync();
         var pendingCommission = (long)(pendingGross * influencerFeePercent / 100m);
         var pendingNet = pendingGross - pendingCommission;
+
+        // Overdue — the subset of unpaid milestones whose due date has passed. This mirrors
+        // the brand-side overdue figure (GetBrandOutstandingBalanceDetailedAsync) but is
+        // expressed from the influencer's perspective: gross owed, minus the influencer
+        // platform fee. We use the milestone gross (AmountInPence) so the headline matches
+        // what the brand owes, and apply the influencer fee for the net/commission split so
+        // it stays consistent with the pending breakdown above.
+        var unpaidMilestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(userId);
+        var today = DateTime.UtcNow.Date;
+        var overdueMilestones = unpaidMilestones.Where(m => m.DueDate < today).ToList();
+        var overdueGross = overdueMilestones.Sum(m => m.AmountInPence);
+        var overdueCommission = (long)(overdueGross * influencerFeePercent / 100m);
+        var overdueNet = overdueGross - overdueCommission;
 
         return Ok(new
         {
@@ -244,7 +262,14 @@ public class PayoutController : ControllerBase
             pendingNetInPence = pendingNet,
             pendingCommissionInPence = pendingCommission,
             pendingGrossInPence = pendingGross,
-            pendingCampaignCount = acceptedCampaigns.Count(c => EffectiveTotal(c) > c.PaidAmountInPence)
+            pendingCampaignCount = acceptedCampaigns.Count(c => EffectiveTotal(c) > c.PaidAmountInPence),
+
+            // Overdue breakdown (pending milestones already past their due date)
+            overdueNetInPence = overdueNet,
+            overdueCommissionInPence = overdueCommission,
+            overdueGrossInPence = overdueGross,
+            overdueMilestoneCount = overdueMilestones.Count,
+            hasOverdue = overdueMilestones.Count > 0
         });
     }
 
@@ -315,8 +340,16 @@ public class PayoutController : ControllerBase
 
         // Get user's currency based on location
         var (userCurrency, _) = await GetUserCurrencyAndGatewayAsync(userId);
+        var now = DateTime.UtcNow;
+        var influencerFeePercent = await _settingsService.GetInfluencerPlatformFeePercentAsync();
 
-        return Ok(milestones.Select(m => new
+        var items = new List<object>();
+
+        // PlatformFeeInPence on the milestone row is the BRAND's fee. The influencer cares
+        // about their own fee, which is what gets deducted from their payout (see
+        // PaymentOrchestrator.CreatePayoutRecord), so we recompute it here. The UI shows the
+        // net (AmountInPence - PlatformFeeInPence) as "what you'll receive".
+        items.AddRange(milestones.Select(m => (object)new
         {
             m.Id,
             m.CampaignId,
@@ -324,13 +357,61 @@ public class PayoutController : ControllerBase
             brandName = m.Campaign?.Brand?.BrandName ?? m.Campaign?.Brand?.Name,
             m.MilestoneNumber,
             m.AmountInPence,
-            m.PlatformFeeInPence,
+            PlatformFeeInPence = (long)(m.AmountInPence * influencerFeePercent / 100m),
             currency = m.Campaign?.Currency ?? userCurrency,
-            m.DueDate,
+            dueDate = (DateTime?)m.DueDate,
             m.Status,
             statusText = GetMilestoneStatusText(m.Status),
-            isOverdue = m.DueDate < DateTime.UtcNow && m.Status == (int)MilestoneStatus.PENDING
+            isOverdue = m.DueDate < now && m.Status == (int)MilestoneStatus.PENDING,
+            isUnscheduled = false
         }));
+
+        // Full-payment campaigns have no milestones, and milestone campaigns may not be
+        // scheduled yet. The brand still owes the remaining amount (counted by the earnings
+        // dashboard's pending total), so add a campaign-level entry for any remaining amount
+        // not covered by pending milestones — keeping this list consistent with that total.
+        var campaigns = (await _campaignRepo.GetCampaignsByInfluencerId(userId)).ToList();
+        var payableCampaigns = campaigns.Where(c =>
+            c.CampaignStatus != (int)CampaignStatus.CANCELLED
+            && ((c.InfluencerAcceptedAt.HasValue
+                    && c.ContractSignedAt.HasValue
+                    && c.SignatureApprovedAt.HasValue)
+                || c.CampaignStatus >= (int)CampaignStatus.AWAITING_PAYMENT));
+
+        long EffectiveTotal(Campaign c) =>
+            c.TotalAmountInPence > 0 ? c.TotalAmountInPence : (long)(c.Amount * 100);
+
+        var pendingByCampaign = milestones
+            .GroupBy(m => m.CampaignId)
+            .ToDictionary(g => g.Key, g => g.Sum(m => m.AmountInPence));
+
+        foreach (var c in payableCampaigns)
+        {
+            var remaining = Math.Max(0, EffectiveTotal(c) - c.PaidAmountInPence);
+            pendingByCampaign.TryGetValue(c.Id, out var covered);
+            var uncovered = Math.Max(0, remaining - covered);
+            if (uncovered <= 0) continue;
+
+            var dueDate = c.CampaignEndDate.ToDateTime(TimeOnly.MinValue);
+            items.Add(new
+            {
+                Id = -c.Id, // negative id => synthetic campaign-level entry
+                CampaignId = c.Id,
+                campaignName = c.ProjectName,
+                brandName = c.Brand?.BrandName ?? c.Brand?.Name,
+                MilestoneNumber = 0, // 0 => full payment / not yet scheduled
+                AmountInPence = uncovered,
+                PlatformFeeInPence = (long)(uncovered * influencerFeePercent / 100m),
+                currency = c.Currency ?? userCurrency,
+                dueDate = (DateTime?)dueDate,
+                Status = (int)MilestoneStatus.PENDING,
+                statusText = "Full / unscheduled payment",
+                isOverdue = dueDate < now,
+                isUnscheduled = true
+            });
+        }
+
+        return Ok(items);
     }
 
     /// <summary>

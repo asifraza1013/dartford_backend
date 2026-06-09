@@ -374,21 +374,32 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             _logger.LogInformation("Campaign {CampaignId} activated after payment", campaign.Id);
         }
 
+        var allMilestones = await _milestoneRepo.GetByCampaignIdAsync(campaign.Id);
+
+        // A one-time / full payment carries no MilestoneId and the campaign has no milestone
+        // schedule, so this single transaction settles the campaign in full. Don't rely on the
+        // legacy `Amount` backfill above (which can leave TotalAmountInPence out of sync and
+        // strand the campaign at PARTIAL with a ₦0 paid amount on the detail page) — treat the
+        // amount just paid as the authoritative total so the status resolves to COMPLETED and
+        // the page no longer looks ready for another payment.
+        var isFullOneTimePayment =
+            !transaction.MilestoneId.HasValue &&
+            allMilestones.Count == 0 &&
+            campaign.PaidAmountInPence > 0;
+
+        if (isFullOneTimePayment)
+        {
+            campaign.TotalAmountInPence = campaign.PaidAmountInPence;
+        }
+
         // Determine "fully paid" from two angles:
-        //   1. Amount-based: PaidAmountInPence >= TotalAmountInPence (newer rows
-        //      where the pence aggregates are reliable).
-        //   2. Milestone-based: every milestone is in the PAID state.
-        //
-        // The milestone fallback rescues legacy campaigns where the older
-        // `Amount` field is the only authoritative total — without it the
-        // amount-based check would silently degrade to PARTIAL forever and
-        // the influencer's Bookings page would keep displaying "Partial"
-        // even though Earnings already paid out the funds.
+        //   1. Amount-based: PaidAmountInPence >= TotalAmountInPence.
+        //   2. Milestone-based: every milestone is in the PAID state (rescues legacy
+        //      campaigns where the older `Amount` field is the only authoritative total).
         var fullyPaidByAmount =
             campaign.TotalAmountInPence > 0 &&
             campaign.PaidAmountInPence >= campaign.TotalAmountInPence;
 
-        var allMilestones = await _milestoneRepo.GetByCampaignIdAsync(campaign.Id);
         var fullyPaidByMilestones =
             allMilestones.Count > 0 &&
             allMilestones.All(m => m.Status == (int)MilestoneStatus.PAID);
@@ -398,8 +409,8 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             campaign.PaymentStatus = (int)PaymentStatus.COMPLETED;
             campaign.PaymentCompletedAt = DateTime.UtcNow;
             _logger.LogInformation(
-                "Campaign {CampaignId} fully paid (amount={ByAmount}, milestones={ByMilestones})",
-                campaign.Id, fullyPaidByAmount, fullyPaidByMilestones);
+                "Campaign {CampaignId} fully paid (amount={ByAmount}, milestones={ByMilestones}, oneTime={OneTime})",
+                campaign.Id, fullyPaidByAmount, fullyPaidByMilestones, isFullOneTimePayment);
         }
         else if (campaign.PaidAmountInPence > 0)
         {
@@ -1019,6 +1030,112 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             PendingMilestones = milestones.Count(m => m.Status == (int)MilestoneStatus.PENDING || m.Status == (int)MilestoneStatus.OVERDUE),
             NextDueMilestone = nextDueMilestone
         };
+    }
+
+    /// <summary>
+    /// Recompute a campaign's payment state from its COMPLETED transactions and milestone
+    /// status, then persist the correct PaidAmountInPence / TotalAmountInPence / PaymentStatus
+    /// / CampaignStatus. Idempotent — safe to run repeatedly. Used to repair campaigns whose
+    /// status drifted (e.g. one-time full payments stranded at PARTIAL). Returns true if any
+    /// field changed.
+    /// </summary>
+    public async Task<bool> ReconcileCampaignPaymentAsync(int campaignId)
+    {
+        var campaign = await _campaignRepo.GetById(campaignId);
+        if (campaign == null) return false;
+
+        var before = (campaign.PaidAmountInPence, campaign.TotalAmountInPence,
+                      campaign.PaymentStatus, campaign.CampaignStatus);
+
+        // Authoritative paid amount = sum of this campaign's COMPLETED transactions. Fall back
+        // to the legacy float Amount when a row predates the pence column.
+        var transactions = await _transactionRepo.GetByCampaignIdAsync(campaignId);
+        var completed = transactions
+            .Where(t => t.TransactionStatus == (int)PaymentStatus.COMPLETED)
+            .ToList();
+        long PaidOf(Transaction t) => t.AmountInPence > 0 ? t.AmountInPence : (long)(t.Amount * 100);
+        var paid = completed.Sum(PaidOf);
+        campaign.PaidAmountInPence = paid;
+
+        // Backfill total from the legacy Amount field when it was never set.
+        if (campaign.TotalAmountInPence <= 0 && campaign.Amount > 0)
+            campaign.TotalAmountInPence = (long)(campaign.Amount * 100);
+
+        var milestones = await _milestoneRepo.GetByCampaignIdAsync(campaignId);
+
+        // Mark milestones paid where a completed transaction settled them (by id, or any
+        // full-payment transaction that has no MilestoneId clears the whole schedule).
+        var paidMilestoneIds = completed
+            .Where(t => t.MilestoneId.HasValue)
+            .Select(t => t.MilestoneId!.Value)
+            .ToHashSet();
+        var hasFullPaymentTx = completed.Any(t => !t.MilestoneId.HasValue);
+        foreach (var m in milestones)
+        {
+            if ((paidMilestoneIds.Contains(m.Id) || hasFullPaymentTx) &&
+                m.Status != (int)MilestoneStatus.PAID)
+            {
+                m.Status = (int)MilestoneStatus.PAID;
+                m.PaidAt ??= DateTime.UtcNow;
+                await _milestoneRepo.UpdateAsync(m);
+            }
+        }
+
+        // One-time / full payment with no schedule: the amount paid IS the total.
+        if (milestones.Count == 0 && paid > 0)
+            campaign.TotalAmountInPence = paid;
+
+        var fullyPaidByAmount =
+            campaign.TotalAmountInPence > 0 &&
+            campaign.PaidAmountInPence >= campaign.TotalAmountInPence;
+        var fullyPaidByMilestones =
+            milestones.Count > 0 &&
+            milestones.All(m => m.Status == (int)MilestoneStatus.PAID);
+
+        if (fullyPaidByAmount || fullyPaidByMilestones)
+        {
+            campaign.PaymentStatus = (int)PaymentStatus.COMPLETED;
+            campaign.PaymentCompletedAt ??= DateTime.UtcNow;
+            if (campaign.CampaignStatus == (int)CampaignStatus.AWAITING_PAYMENT)
+                campaign.CampaignStatus = (int)CampaignStatus.ACTIVE;
+        }
+        else if (paid > 0)
+        {
+            campaign.PaymentStatus = (int)PaymentStatus.PARTIAL;
+        }
+
+        await _campaignRepo.Update(campaign);
+
+        var after = (campaign.PaidAmountInPence, campaign.TotalAmountInPence,
+                     campaign.PaymentStatus, campaign.CampaignStatus);
+        var changed = before != after;
+        if (changed)
+            _logger.LogInformation(
+                "Reconciled campaign {Id}: paid {P0}->{P1}, total {T0}->{T1}, payStatus {PS0}->{PS1}, status {S0}->{S1}",
+                campaign.Id, before.Item1, after.Item1, before.Item2, after.Item2,
+                before.Item3, after.Item3, before.Item4, after.Item4);
+        return changed;
+    }
+
+    /// <summary>
+    /// Reconcile every campaign's payment state. Returns the total scanned and how many changed.
+    /// </summary>
+    public async Task<(int Total, int Changed)> ReconcileAllCampaignPaymentsAsync()
+    {
+        var campaigns = (await _campaignRepo.GetAll()).ToList();
+        var changed = 0;
+        foreach (var c in campaigns)
+        {
+            try
+            {
+                if (await ReconcileCampaignPaymentAsync(c.Id)) changed++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reconcile failed for campaign {Id}", c.Id);
+            }
+        }
+        return (campaigns.Count, changed);
     }
 
     public async Task<long> GetBrandOutstandingBalanceAsync(int brandId)

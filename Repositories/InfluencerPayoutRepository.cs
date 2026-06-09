@@ -82,6 +82,9 @@ public class InfluencerPayoutRepository : IInfluencerPayoutRepository
         if (filter.CampaignId.HasValue)
             query = query.Where(p => p.CampaignId == filter.CampaignId.Value);
 
+        if (filter.BrandId.HasValue)
+            query = query.Where(p => p.Campaign != null && p.Campaign.BrandId == filter.BrandId.Value);
+
         if (filter.Status.HasValue)
             query = query.Where(p => p.Status == filter.Status.Value);
 

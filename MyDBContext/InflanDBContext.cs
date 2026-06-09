@@ -36,6 +36,7 @@ namespace inflan_api.MyDBContext
         public DbSet<InfluencerBankAccount> InfluencerBankAccounts { get; set; }
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; }
         public DbSet<ScheduledPost> ScheduledPosts { get; set; }
+        public DbSet<Rating> Ratings { get; set; }
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);

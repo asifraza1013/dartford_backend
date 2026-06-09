@@ -115,6 +115,10 @@ public class MilestoneReminderBackgroundService : BackgroundService
                 var brand = await userRepo.GetById(campaign.BrandId);
                 if (brand == null || string.IsNullOrWhiteSpace(brand.Email)) continue;
 
+                // The influencer gets an informational copy (in-app + email); loaded once per
+                // milestone so DispatchAsync can notify both parties.
+                var influencer = await userRepo.GetById(campaign.InfluencerId);
+
                 var brandCurrency = brand.Currency?.ToUpper() ?? "NGN";
                 var totalAmountInPence = milestone.AmountInPence + milestone.PlatformFeeInPence;
 
@@ -134,7 +138,7 @@ public class MilestoneReminderBackgroundService : BackgroundService
                     if (milestone.OverdueNoticeSentAt == null)
                     {
                         await DispatchAsync(
-                            milestone, campaign, brand, brandCurrency,
+                            milestone, campaign, brand, influencer, brandCurrency,
                             totalAmountInPence, daysUntilDue: -1,
                             notificationService, emailService);
                         milestone.OverdueNoticeSentAt = now;
@@ -152,7 +156,7 @@ public class MilestoneReminderBackgroundService : BackgroundService
                 if (daysUntilDue <= 1 && milestone.Reminder1DaySentAt == null)
                 {
                     await DispatchAsync(
-                        milestone, campaign, brand, brandCurrency,
+                        milestone, campaign, brand, influencer, brandCurrency,
                         totalAmountInPence, daysUntilDue: 1,
                         notificationService, emailService);
                     milestone.Reminder1DaySentAt = now;
@@ -162,7 +166,7 @@ public class MilestoneReminderBackgroundService : BackgroundService
                 else if (daysUntilDue <= 3 && milestone.Reminder3DaysSentAt == null)
                 {
                     await DispatchAsync(
-                        milestone, campaign, brand, brandCurrency,
+                        milestone, campaign, brand, influencer, brandCurrency,
                         totalAmountInPence, daysUntilDue: 3,
                         notificationService, emailService);
                     milestone.Reminder3DaysSentAt = now;
@@ -172,7 +176,7 @@ public class MilestoneReminderBackgroundService : BackgroundService
                 else if (daysUntilDue <= 7 && milestone.Reminder7DaysSentAt == null)
                 {
                     await DispatchAsync(
-                        milestone, campaign, brand, brandCurrency,
+                        milestone, campaign, brand, influencer, brandCurrency,
                         totalAmountInPence, daysUntilDue: 7,
                         notificationService, emailService);
                     milestone.Reminder7DaysSentAt = now;
@@ -202,6 +206,7 @@ public class MilestoneReminderBackgroundService : BackgroundService
         PaymentMilestone milestone,
         Campaign campaign,
         User brand,
+        User? influencer,
         string currency,
         long totalAmountInPence,
         int daysUntilDue,
@@ -209,14 +214,14 @@ public class MilestoneReminderBackgroundService : BackgroundService
         IEmailService emailService)
     {
         var projectName = campaign.ProjectName ?? $"Campaign #{campaign.Id}";
+        var formattedAmount = FormatAmount(totalAmountInPence, currency);
 
-        // In-app notification.
-        var title = daysUntilDue <= 0
+        // ---- Brand: in-app notification + "please pay" email --------------------
+        var brandTitle = daysUntilDue <= 0
             ? "Milestone payment overdue"
             : $"Milestone payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
 
-        var formattedAmount = FormatAmount(totalAmountInPence, currency);
-        var message = daysUntilDue <= 0
+        var brandMessage = daysUntilDue <= 0
             ? $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for \"{projectName}\" is overdue. Please complete the payment to keep the campaign active."
             : $"Milestone {milestone.MilestoneNumber} ({formattedAmount}) for \"{projectName}\" is due on {milestone.DueDate:MMM d, yyyy}.";
 
@@ -224,14 +229,13 @@ public class MilestoneReminderBackgroundService : BackgroundService
         {
             UserId = brand.Id,
             Type = NotificationType.Payment,
-            Title = title,
-            Message = message,
+            Title = brandTitle,
+            Message = brandMessage,
             ReferenceId = campaign.Id,
             ReferenceType = "campaign"
         });
 
-        // Email — best-effort, swallow errors so a failed send doesn't block
-        // the rest of the sweep.
+        // Email — best-effort, swallow errors so a failed send doesn't block the sweep.
         try
         {
             await emailService.SendMilestoneReminderAsync(
@@ -248,9 +252,53 @@ public class MilestoneReminderBackgroundService : BackgroundService
         }
         catch
         {
-            // EmailService logs the underlying error; reminder was already
-            // recorded as an in-app notification, so we still consider the
-            // window served and don't retry on the next sweep.
+            // EmailService logs the underlying error; reminder was already recorded as an
+            // in-app notification, so we still consider the window served.
+        }
+
+        // ---- Influencer: informational in-app notification + email --------------
+        if (influencer != null)
+        {
+            var infTitle = daysUntilDue <= 0
+                ? "Brand payment overdue"
+                : $"Brand payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
+
+            var infMessage = daysUntilDue <= 0
+                ? $"{brand.Name}'s payment for milestone {milestone.MilestoneNumber} ({formattedAmount}) on \"{projectName}\" is overdue. You'll receive your payout once it's completed."
+                : $"{brand.Name}'s payment for milestone {milestone.MilestoneNumber} ({formattedAmount}) on \"{projectName}\" is due on {milestone.DueDate:MMM d, yyyy}.";
+
+            await notificationService.CreateNotificationAsync(new CreateNotificationRequest
+            {
+                UserId = influencer.Id,
+                Type = NotificationType.Payment,
+                Title = infTitle,
+                Message = infMessage,
+                ReferenceId = campaign.Id,
+                ReferenceType = "campaign"
+            });
+
+            if (!string.IsNullOrWhiteSpace(influencer.Email))
+            {
+                try
+                {
+                    await emailService.SendMilestonePaymentNoticeToInfluencerAsync(
+                        influencer.Email!,
+                        influencer.Name ?? string.Empty,
+                        brand.Name ?? string.Empty,
+                        campaign.Id,
+                        projectName,
+                        milestone.MilestoneNumber,
+                        milestone.AmountInPence,
+                        milestone.PlatformFeeInPence,
+                        currency,
+                        milestone.DueDate,
+                        daysUntilDue);
+                }
+                catch
+                {
+                    // Best-effort; the in-app notification above already informed the influencer.
+                }
+            }
         }
     }
 

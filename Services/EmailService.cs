@@ -1039,6 +1039,102 @@ public class EmailService : IEmailService
         await SendEmailAsync(brandEmail, subject, body);
     }
 
+    /// <summary>
+    /// Sends an informational copy of a milestone payment reminder to the influencer, who is
+    /// awaiting the payout. Unlike the brand email there is no "Pay Now" call to action, since
+    /// the influencer cannot pay. Pass a non-positive <paramref name="daysUntilDue"/> for the
+    /// overdue variant.
+    /// </summary>
+    public async Task SendMilestonePaymentNoticeToInfluencerAsync(
+        string toEmail,
+        string influencerName,
+        string brandName,
+        int campaignId,
+        string projectName,
+        int milestoneNumber,
+        long amountInPence,
+        long platformFeeInPence,
+        string currency,
+        DateTime dueDate,
+        int daysUntilDue)
+    {
+        var currencySymbol = currency.ToUpper() switch
+        {
+            "USD" => "$",
+            "EUR" => "€",
+            "GBP" => "£",
+            "NGN" => "₦",
+            _ => currency
+        };
+
+        var totalAmount = (amountInPence + platformFeeInPence) / 100m;
+        var amountDisplay = $"{currencySymbol}{totalAmount:N2}";
+        var dueDateDisplay = dueDate.ToString("dddd, MMMM d, yyyy");
+        var isOverdue = daysUntilDue <= 0;
+        var dayWord = $"{daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
+
+        var headlineBg = isOverdue ? "#FEF3F2" : "#FFFAEB";
+        var headlineBorder = isOverdue ? "#F04438" : "#F79009";
+        var headlineEmoji = isOverdue ? "⚠️" : "🔔";
+
+        var title = isOverdue ? "Payment Overdue From Brand" : "Upcoming Payment From Brand";
+        var subject = isOverdue
+            ? $"Payment overdue for \"{projectName}\""
+            : $"Upcoming payment for \"{projectName}\" — due in {dayWord}";
+        var headlineText = isOverdue ? "The brand's payment is overdue" : $"The brand's payment is due in {dayWord}";
+        var urgencyLine = isOverdue
+            ? $"{brandName}'s payment for milestone #{milestoneNumber} on \"{projectName}\" was due on {dueDateDisplay} and hasn't been completed yet. You'll receive your payout once the brand pays — no action is needed from you."
+            : $"{brandName}'s payment for milestone #{milestoneNumber} on \"{projectName}\" is due on {dueDateDisplay}. You'll receive your payout once it's completed.";
+
+        var content = $@"
+            <div style=""background-color: {headlineBg}; border-left: 4px solid {headlineBorder}; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    {headlineEmoji} {headlineText}
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    {urgencyLine}
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0; background-color: #f8f9fb; border-radius: 8px;"">
+                <tr>
+                    <td style=""padding: 20px;"">
+                        <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"">
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName} (#{campaignId})</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Milestone</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{milestoneNumber}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Due Date</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: {(isOverdue ? "#B42318" : "#101828")}; font-family: 'Inter', Arial, sans-serif;"">{dueDateDisplay}</p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <td style=""padding: 16px 0 8px 0;"">
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Amount</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 28px; font-weight: 700; color: #3B71FE; font-family: 'Inter', Arial, sans-serif;"">{amountDisplay}</p>
+                                </td>
+                            </tr>
+                        </table>
+                    </td>
+                </tr>
+            </table>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/earnings/pending-payments";
+        var body = GetEmailTemplate(title, $"Dear {influencerName},", content, "View Earnings", dashboardUrl);
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
     public async Task SendScheduledPostReminderAsync(
         string influencerEmail,
         string influencerName,

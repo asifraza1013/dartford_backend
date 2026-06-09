@@ -35,6 +35,17 @@ public interface IPaymentOrchestrator
     Task<CampaignPaymentSummary> GetCampaignPaymentSummaryAsync(int campaignId);
 
     /// <summary>
+    /// Recompute and persist a campaign's payment state from its completed transactions and
+    /// milestone status. Idempotent; returns true if anything changed.
+    /// </summary>
+    Task<bool> ReconcileCampaignPaymentAsync(int campaignId);
+
+    /// <summary>
+    /// Reconcile every campaign's payment state. Returns (total scanned, number changed).
+    /// </summary>
+    Task<(int Total, int Changed)> ReconcileAllCampaignPaymentsAsync();
+
+    /// <summary>
     /// Get brand's overdue balance (only overdue milestones)
     /// </summary>
     Task<long> GetBrandOutstandingBalanceAsync(int brandId);

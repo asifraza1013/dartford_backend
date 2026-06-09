@@ -9,5 +9,6 @@ public class PaymentFilterDto
     public long? MinAmount { get; set; }
     public long? MaxAmount { get; set; }
     public int? CampaignId { get; set; }
+    public int? BrandId { get; set; }
     public int? Status { get; set; }
 }

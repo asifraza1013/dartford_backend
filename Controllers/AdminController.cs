@@ -1023,6 +1023,211 @@ namespace inflan_api.Controllers
         }
 
         #endregion
+
+        #region Reports & Analytics
+
+        /// <summary>
+        /// i. Registration trends — new users per month split by role (brand / influencer).
+        /// </summary>
+        [HttpGet("reports/registrations")]
+        public async Task<IActionResult> GetRegistrationTrends([FromQuery] int months = 12)
+        {
+            if (months < 1) months = 12;
+            var first = DateTime.UtcNow.Date.AddMonths(-(months - 1));
+            var since = new DateTime(first.Year, first.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            var users = await _context.Users
+                .Where(u => u.UserType != (int)UserType.ADMIN && u.CreatedAt >= since)
+                .Select(u => new { u.CreatedAt, u.UserType })
+                .ToListAsync();
+
+            var result = new List<object>();
+            for (int i = 0; i < months; i++)
+            {
+                var monthStart = since.AddMonths(i);
+                var monthEnd = monthStart.AddMonths(1);
+                var inMonth = users.Where(u => u.CreatedAt >= monthStart && u.CreatedAt < monthEnd).ToList();
+                result.Add(new
+                {
+                    period = monthStart.ToString("MMM yyyy"),
+                    brands = inMonth.Count(u => u.UserType == (int)UserType.BRAND),
+                    influencers = inMonth.Count(u => u.UserType == (int)UserType.INFLUENCER),
+                    total = inMonth.Count
+                });
+            }
+            return Ok(result);
+        }
+
+        /// <summary>
+        /// v. Average contract duration (campaign start → end) across real engagements.
+        /// </summary>
+        [HttpGet("reports/contract-duration")]
+        public async Task<IActionResult> GetContractDuration()
+        {
+            var campaigns = await _context.Campaigns
+                .Where(c => c.CampaignStatus >= (int)CampaignStatus.ACTIVE
+                            && c.CampaignStatus != (int)CampaignStatus.CANCELLED)
+                .Select(c => new { c.CampaignStartDate, c.CampaignEndDate })
+                .ToListAsync();
+
+            var durations = campaigns
+                .Select(c => c.CampaignEndDate.DayNumber - c.CampaignStartDate.DayNumber)
+                .Where(d => d >= 0)
+                .ToList();
+
+            return Ok(new
+            {
+                averageDays = durations.Count > 0 ? Math.Round(durations.Average(), 1) : 0,
+                campaignCount = durations.Count,
+                minDays = durations.Count > 0 ? durations.Min() : 0,
+                maxDays = durations.Count > 0 ? durations.Max() : 0
+            });
+        }
+
+        /// <summary>
+        /// vi. Message volume — total chat messages and the most active senders.
+        /// </summary>
+        [HttpGet("reports/message-volume")]
+        public async Task<IActionResult> GetMessageVolume([FromQuery] int top = 10)
+        {
+            var totalMessages = await _context.ChatMessages.CountAsync();
+            var sendersCount = await _context.ChatMessages.Select(m => m.SenderId).Distinct().CountAsync();
+
+            var perUser = await _context.ChatMessages
+                .GroupBy(m => m.SenderId)
+                .Select(g => new { SenderId = g.Key, Count = g.Count() })
+                .OrderByDescending(x => x.Count)
+                .Take(top)
+                .ToListAsync();
+
+            var ids = perUser.Select(x => x.SenderId).ToList();
+            var users = await _context.Users
+                .Where(u => ids.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.BrandName, u.UserType })
+                .ToListAsync();
+
+            var topSenders = perUser.Select(x =>
+            {
+                var u = users.FirstOrDefault(y => y.Id == x.SenderId);
+                return new
+                {
+                    userId = x.SenderId,
+                    name = u?.BrandName ?? u?.Name ?? $"User #{x.SenderId}",
+                    userType = u?.UserType ?? 0,
+                    messageCount = x.Count
+                };
+            });
+
+            return Ok(new
+            {
+                totalMessages,
+                sendersCount,
+                averagePerSender = sendersCount > 0 ? Math.Round((double)totalMessages / sendersCount, 1) : 0,
+                topSenders
+            });
+        }
+
+        /// <summary>
+        /// vii. Highest-rated influencers and brands (average 1–5 star rating).
+        /// </summary>
+        [HttpGet("reports/top-rated")]
+        public async Task<IActionResult> GetTopRated([FromQuery] int top = 10)
+        {
+            var agg = await _context.Ratings
+                .GroupBy(r => new { r.RateeId, r.RateeUserType })
+                .Select(g => new
+                {
+                    g.Key.RateeId,
+                    g.Key.RateeUserType,
+                    AvgRating = g.Average(x => (double)x.Stars),
+                    Count = g.Count()
+                })
+                .ToListAsync();
+
+            var ids = agg.Select(a => a.RateeId).ToList();
+            var users = await _context.Users
+                .Where(u => ids.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.BrandName })
+                .ToListAsync();
+
+            string NameOf(int id)
+            {
+                var u = users.FirstOrDefault(y => y.Id == id);
+                return u?.BrandName ?? u?.Name ?? $"User #{id}";
+            }
+
+            var rated = agg
+                .Select(a => new
+                {
+                    a.RateeUserType,
+                    userId = a.RateeId,
+                    name = NameOf(a.RateeId),
+                    avgRating = Math.Round(a.AvgRating, 2),
+                    ratingCount = a.Count
+                })
+                .OrderByDescending(a => a.avgRating)
+                .ThenByDescending(a => a.ratingCount)
+                .ToList();
+
+            return Ok(new
+            {
+                topInfluencers = rated.Where(a => a.RateeUserType == (int)UserType.INFLUENCER).Take(top)
+                    .Select(a => new { a.userId, a.name, a.avgRating, a.ratingCount }),
+                topBrands = rated.Where(a => a.RateeUserType == (int)UserType.BRAND).Take(top)
+                    .Select(a => new { a.userId, a.name, a.avgRating, a.ratingCount })
+            });
+        }
+
+        /// <summary>
+        /// viii. Most frequent contractors — brands and influencers ranked by campaign count.
+        /// </summary>
+        [HttpGet("reports/top-contractors")]
+        public async Task<IActionResult> GetTopContractors([FromQuery] int top = 10)
+        {
+            var brandAgg = await _context.Campaigns
+                .GroupBy(c => c.BrandId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    CampaignCount = g.Count(),
+                    Completed = g.Count(c => c.CampaignStatus == (int)CampaignStatus.COMPLETED)
+                })
+                .OrderByDescending(x => x.CampaignCount)
+                .Take(top)
+                .ToListAsync();
+
+            var infAgg = await _context.Campaigns
+                .GroupBy(c => c.InfluencerId)
+                .Select(g => new
+                {
+                    UserId = g.Key,
+                    CampaignCount = g.Count(),
+                    Completed = g.Count(c => c.CampaignStatus == (int)CampaignStatus.COMPLETED)
+                })
+                .OrderByDescending(x => x.CampaignCount)
+                .Take(top)
+                .ToListAsync();
+
+            var ids = brandAgg.Select(x => x.UserId).Concat(infAgg.Select(x => x.UserId)).Distinct().ToList();
+            var users = await _context.Users
+                .Where(u => ids.Contains(u.Id))
+                .Select(u => new { u.Id, u.Name, u.BrandName })
+                .ToListAsync();
+
+            string NameOf(int id)
+            {
+                var u = users.FirstOrDefault(y => y.Id == id);
+                return u?.BrandName ?? u?.Name ?? $"User #{id}";
+            }
+
+            return Ok(new
+            {
+                topBrands = brandAgg.Select(x => new { userId = x.UserId, name = NameOf(x.UserId), campaignCount = x.CampaignCount, completedCount = x.Completed }),
+                topInfluencers = infAgg.Select(x => new { userId = x.UserId, name = NameOf(x.UserId), campaignCount = x.CampaignCount, completedCount = x.Completed })
+            });
+        }
+
+        #endregion
     }
 
     // Request models

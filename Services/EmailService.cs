@@ -328,6 +328,51 @@ public class EmailService : IEmailService
         await SendEmailAsync(influencerEmail, subject, body);
     }
 
+    public async Task SendCampaignCompletedReviewRequestAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName)
+    {
+        var subject = $"Campaign Completed: {projectName}";
+
+        var content = $@"
+            <div style=""background-color: #FFFBEB; border-left: 4px solid #DF9904; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0 0 10px 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">
+                    ⭐ How did it go?
+                </p>
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    {brandName} has marked your campaign as completed. Leave a review to share your experience.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0;"">
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign Name</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign ID</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{campaignId}</p>
+                    </td>
+                </tr>
+            </table>
+
+            <p style=""margin: 20px 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                Your review stays private until {brandName} also leaves theirs (or after 14 days), so both sides can be candid. Log in to your dashboard to rate this brand.
+            </p>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/bookings";
+        var body = GetEmailTemplate(
+            "Campaign Completed",
+            $"Dear {influencerName},",
+            content,
+            "Leave a Review",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
     public async Task SendInfluencerResponseNotificationAsync(string brandEmail, string brandName, int campaignId, string projectName, bool accepted, string? contractPdfPath = null)
     {
         var subject = $"Campaign {(accepted ? "Accepted" : "Rejected")}: {projectName}";

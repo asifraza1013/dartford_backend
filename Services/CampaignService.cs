@@ -12,6 +12,7 @@ public class CampaignService : ICampaignService
     private readonly IPdfGenerationService _pdfGenerationService;
     private readonly IEmailService _emailService;
     private readonly IInfluencerService _influencerService;
+    private readonly INotificationService _notificationService;
 
     public CampaignService(
         ICampaignRepository campaignRepository,
@@ -19,7 +20,8 @@ public class CampaignService : ICampaignService
         IUserService userService,
         IPdfGenerationService pdfGenerationService,
         IEmailService emailService,
-        IInfluencerService influencerService)
+        IInfluencerService influencerService,
+        INotificationService notificationService)
     {
         _campaignRepository = campaignRepository;
         _planService = planService;
@@ -27,6 +29,7 @@ public class CampaignService : ICampaignService
         _pdfGenerationService = pdfGenerationService;
         _emailService = emailService;
         _influencerService = influencerService;
+        _notificationService = notificationService;
     }
 
     public async Task<IEnumerable<Campaign>> GetAllCampaigns()
@@ -432,6 +435,61 @@ public class CampaignService : ICampaignService
         }
 
         return (true, "Campaign activated successfully");
+    }
+
+    public async Task<(bool Success, string Message, Campaign? Campaign)> CompleteCampaignAsync(int campaignId, int brandId)
+    {
+        var campaign = await _campaignRepository.GetById(campaignId);
+
+        if (campaign == null)
+            return (false, "Campaign not found", null);
+
+        // Only the owning brand may mark a campaign complete.
+        if (campaign.BrandId != brandId)
+            return (false, "You are not authorized to complete this campaign", null);
+
+        // Guard against double completion and premature completion.
+        if (campaign.CampaignStatus == (int)CampaignStatus.COMPLETED)
+            return (false, "Campaign is already completed", null);
+
+        if (campaign.CampaignStatus != (int)CampaignStatus.ACTIVE)
+            return (false, "Only an active campaign can be marked as completed", null);
+
+        campaign.CampaignStatus = (int)CampaignStatus.COMPLETED;
+        campaign.CompletedAt = DateTime.UtcNow;
+        await _campaignRepository.Update(campaign);
+
+        // Invite the influencer to review the brand (double-blind — see RatingsController).
+        var influencer = await _userService.GetUserById(campaign.InfluencerId);
+        var brand = await _userService.GetUserById(campaign.BrandId);
+        if (influencer != null && brand != null)
+        {
+            await _emailService.SendCampaignCompletedReviewRequestAsync(
+                influencer.Email ?? "",
+                influencer.Name ?? "",
+                campaign.Id,
+                campaign.ProjectName,
+                brand.Name ?? "Brand"
+            );
+        }
+
+        // In-app notifications for both parties. Runs for any completion path (manual or a future
+        // cron), since both go through this method.
+        await _notificationService.CreateCampaignNotificationAsync(
+            campaign.InfluencerId,
+            campaign.Id,
+            campaign.ProjectName,
+            NotificationType.CampaignUpdate,
+            $"Your campaign has been marked complete. Leave a review for {brand?.Name ?? "the brand"}.");
+
+        await _notificationService.CreateCampaignNotificationAsync(
+            campaign.BrandId,
+            campaign.Id,
+            campaign.ProjectName,
+            NotificationType.CampaignUpdate,
+            $"Campaign completed. Leave a review for {influencer?.Name ?? "the influencer"}.");
+
+        return (true, "Campaign marked as completed.", campaign);
     }
 
     public async Task<(bool Success, string Message)> ApproveSignedContractAsync(int campaignId, int influencerId)

@@ -392,6 +392,33 @@ namespace inflan_api.Controllers
             });
         }
 
+        [HttpPost("completeCampaign/{campaignId}")]
+        [Authorize]
+        public async Task<IActionResult> CompleteCampaign(int campaignId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int brandId = int.Parse(userIdClaim.Value);
+            var (success, message, campaign) = await _campaignService.CompleteCampaignAsync(campaignId, brandId);
+
+            if (!success)
+                return StatusCode(400, new {
+                    message,
+                    code = "CAMPAIGN_COMPLETE_FAILED"
+                });
+
+            return Ok(new {
+                message,
+                campaign,
+                code = "CAMPAIGN_COMPLETED"
+            });
+        }
+
         [HttpPost("rejectCampaign/{campaignId}")]
         [Authorize]
         public async Task<IActionResult> RejectCampaign(int campaignId)

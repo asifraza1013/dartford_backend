@@ -70,6 +70,9 @@ public class Campaign
 
     public DateTime? PaymentCompletedAt { get; set; }
 
+    // Set when the brand marks the campaign COMPLETED. Anchors the review "double-blind" window.
+    public DateTime? CompletedAt { get; set; }
+
     // Legacy field for backward compatibility
     [Obsolete("Use ProjectName instead")]
     public string? CampaignName { get; set; }

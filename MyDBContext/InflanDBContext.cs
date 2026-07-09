@@ -62,6 +62,20 @@ namespace inflan_api.MyDBContext
                 .HasForeignKey(c => c.InfluencerId)
                 .OnDelete(DeleteBehavior.Cascade);
 
+            // Rating → Campaign (one rating per rater per campaign)
+            modelBuilder.Entity<Rating>()
+                .HasOne(r => r.Campaign)
+                .WithMany()
+                .HasForeignKey(r => r.CampaignId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Rating>()
+                .HasIndex(r => new { r.CampaignId, r.RaterId })
+                .IsUnique();
+
+            modelBuilder.Entity<Rating>()
+                .HasIndex(r => new { r.RateeId, r.RateeUserType });
+
             // Plan → User
             modelBuilder.Entity<Plan>()
                 .HasOne<User>()

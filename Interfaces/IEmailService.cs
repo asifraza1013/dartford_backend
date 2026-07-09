@@ -18,6 +18,12 @@ public interface IEmailService
     Task SendCampaignActivatedAsync(string influencerEmail, string influencerName, int campaignId, string projectName);
 
     /// <summary>
+    /// Sends email notification to the influencer when a campaign is marked completed by the brand,
+    /// inviting them to leave a review of the brand.
+    /// </summary>
+    Task SendCampaignCompletedReviewRequestAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName);
+
+    /// <summary>
     /// Sends email notification to brand when influencer accepts/rejects campaign
     /// </summary>
     Task SendInfluencerResponseNotificationAsync(string brandEmail, string brandName, int campaignId, string projectName, bool accepted, string? contractPdfPath = null);

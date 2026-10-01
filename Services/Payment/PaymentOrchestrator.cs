@@ -392,25 +392,23 @@ public class PaymentOrchestrator : IPaymentOrchestrator
             campaign.TotalAmountInPence = campaign.PaidAmountInPence;
         }
 
-        // Determine "fully paid" from two angles:
-        //   1. Amount-based: PaidAmountInPence >= TotalAmountInPence.
-        //   2. Milestone-based: every milestone is in the PAID state (rescues legacy
-        //      campaigns where the older `Amount` field is the only authoritative total).
+        // Fully paid is strictly amount-based: PaidAmountInPence >= TotalAmountInPence.
+        // (Milestones are created one at a time via the payment-setup screen, so "every
+        // milestone row that currently exists is PAID" is NOT the same as "the full
+        // schedule is paid" — paying milestone #1 before #2+ even exist must not complete
+        // the campaign. TotalAmountInPence is always reliable by this point: it's backfilled
+        // from Campaign.Amount above, which is set from the plan price at campaign creation.)
         var fullyPaidByAmount =
             campaign.TotalAmountInPence > 0 &&
             campaign.PaidAmountInPence >= campaign.TotalAmountInPence;
 
-        var fullyPaidByMilestones =
-            allMilestones.Count > 0 &&
-            allMilestones.All(m => m.Status == (int)MilestoneStatus.PAID);
-
-        if (fullyPaidByAmount || fullyPaidByMilestones)
+        if (fullyPaidByAmount)
         {
             campaign.PaymentStatus = (int)PaymentStatus.COMPLETED;
             campaign.PaymentCompletedAt = DateTime.UtcNow;
             _logger.LogInformation(
-                "Campaign {CampaignId} fully paid (amount={ByAmount}, milestones={ByMilestones}, oneTime={OneTime})",
-                campaign.Id, fullyPaidByAmount, fullyPaidByMilestones, isFullOneTimePayment);
+                "Campaign {CampaignId} fully paid (oneTime={OneTime})",
+                campaign.Id, isFullOneTimePayment);
         }
         else if (campaign.PaidAmountInPence > 0)
         {
@@ -1085,14 +1083,14 @@ public class PaymentOrchestrator : IPaymentOrchestrator
         if (milestones.Count == 0 && paid > 0)
             campaign.TotalAmountInPence = paid;
 
+        // Fully paid is strictly amount-based — see HandleSuccessfulPayment for why a
+        // milestone-row-based check ("every milestone that currently exists is PAID") is
+        // wrong when milestones are added one at a time.
         var fullyPaidByAmount =
             campaign.TotalAmountInPence > 0 &&
             campaign.PaidAmountInPence >= campaign.TotalAmountInPence;
-        var fullyPaidByMilestones =
-            milestones.Count > 0 &&
-            milestones.All(m => m.Status == (int)MilestoneStatus.PAID);
 
-        if (fullyPaidByAmount || fullyPaidByMilestones)
+        if (fullyPaidByAmount)
         {
             campaign.PaymentStatus = (int)PaymentStatus.COMPLETED;
             campaign.PaymentCompletedAt ??= DateTime.UtcNow;

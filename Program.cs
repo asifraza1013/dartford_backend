@@ -102,6 +102,7 @@ namespace inflan_api
             builder.Services.AddTransient<IInfluencerService, InfluencerService>();
             builder.Services.AddTransient<IPlanRepository, PlanRepository>();
             builder.Services.AddTransient<IPlanService, PlanService>();
+            builder.Services.AddTransient<IOnboardingService, inflan_api.Services.Onboarding.OnboardingService>();
             builder.Services.AddTransient<ITransactionRepository, TransactionRepository>();
             builder.Services.AddTransient<ICampaignRepository, CampaignRepository>();
             builder.Services.AddTransient<ICampaignService, CampaignService>();

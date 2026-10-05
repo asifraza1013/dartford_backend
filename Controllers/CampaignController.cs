@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using inflan_api.Attributes;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using Microsoft.AspNetCore.Authorization;
@@ -85,6 +86,7 @@ namespace inflan_api.Controllers
 
         [HttpPost("createNewCampaign")]
         [Authorize]
+        [RequireOnboardingComplete]
         public async Task<IActionResult> CreateCampaign([FromBody] Campaign campaign)
         {
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);

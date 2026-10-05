@@ -17,16 +17,16 @@ namespace inflan_api.Controllers
         private readonly IUserService _userService;
         private readonly IAuthService _authService;
         private readonly IInfluencerService _influencerService;
-        private readonly IPlanService _planService;
+        private readonly IOnboardingService _onboardingService;
         private readonly IEmailService _emailService;
         private readonly IConfiguration _configuration;
 
-        public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService, IPlanService planService, IEmailService emailService, IConfiguration configuration)
+        public AuthController(IUserService userService, IAuthService authService, IInfluencerService influencerService, IOnboardingService onboardingService, IEmailService emailService, IConfiguration configuration)
         {
             _userService = userService;
             _authService = authService;
             _influencerService = influencerService;
-            _planService = planService;
+            _onboardingService = onboardingService;
             _emailService = emailService;
             _configuration = configuration;
         }
@@ -76,71 +76,71 @@ namespace inflan_api.Controllers
             }
 
             int userType = user.UserType;
+            var onboarding = await _onboardingService.GetStatusAsync(user);
 
             // For influencer, get complete influencer details
             if (userType == (int)UserType.INFLUENCER)
             {
                 var influencer = await _influencerService.GetInfluencerBasicByUserId(user.Id);
-                if (influencer != null)
+                return Ok(new
                 {
-                    return Ok(new
+                    user = user,
+                    influencer = influencer == null ? null : new
                     {
-                        user = user,
-                        influencer = new
-                        {
-                            id = influencer.Id,
-                            userId = influencer.UserId,
-                            instagram = influencer.Instagram,
-                            instagramFollower = influencer.InstagramFollower,
-                            youtube = influencer.YouTube,
-                            youtubeFollower = influencer.YouTubeFollower,
-                            tiktok = influencer.TikTok,
-                            tiktokFollower = influencer.TikTokFollower,
-                            facebook = influencer.Facebook,
-                            facebookFollower = influencer.FacebookFollower,
-                            bio = influencer.Bio
-                        }
-                    });
-                }
-                else
-                {
-                    // No influencer profile yet
-                    return Ok(new
-                    {
-                        user = user,
-                        influencer = (object?)null,
-                        message = "Please add your social media accounts",
-                        code = Message.INFLUENCER_INFO_NOT_FILLED
-                    });
-                }
+                        id = influencer.Id,
+                        userId = influencer.UserId,
+                        instagram = influencer.Instagram,
+                        instagramFollower = influencer.InstagramFollower,
+                        youtube = influencer.YouTube,
+                        youtubeFollower = influencer.YouTubeFollower,
+                        tiktok = influencer.TikTok,
+                        tiktokFollower = influencer.TikTokFollower,
+                        facebook = influencer.Facebook,
+                        facebookFollower = influencer.FacebookFollower,
+                        bio = influencer.Bio
+                    },
+                    onboarding
+                });
             }
             // For brand, return user with brand details
             else if (userType == (int)UserType.BRAND)
             {
-                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandCategory)
-                                       && !string.IsNullOrWhiteSpace(user.BrandSector)
-                                       && user.Goals != null
-                                       && user.Goals.Any();
-
-                if (!brandInfoFilled)
-                {
-                    return Ok(new
-                    {
-                        user = user,
-                        message = "Please complete your brand profile",
-                        code = Message.BRAND_INFO_NOT_FILLED,
-                        missingStep = "Goals, Sector or Category missing"
-                    });
-                }
-
                 return Ok(new
                 {
-                    user = user
+                    user = user,
+                    onboarding
                 });
             }
 
-            // Default case
-            return Ok(new { user = user });
+            // Default case (admins and any other user type)
+            return Ok(new { user = user, onboarding });
+        }
+
+        /// <summary>
+        /// Lightweight endpoint for the frontend's route guards — just the onboarding
+        /// status, without the full user/influencer payload.
+        /// </summary>
+        [HttpGet("onboarding-status")]
+        [Authorize]
+        public async Task<IActionResult> GetOnboardingStatus()
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int userId = int.Parse(userIdClaim.Value);
+            var user = await _userService.GetUserById(userId);
+            if (user == null)
+                return StatusCode(404, new {
+                    message = "User not found",
+                    code = Message.USER_NOT_FOUND
+                });
+
+            var onboarding = await _onboardingService.GetStatusAsync(user);
+            return Ok(onboarding);
         }
 
         [HttpPost("login")]
@@ -174,48 +174,13 @@ namespace inflan_api.Controllers
                 });
 
             var token = _authService.GenerateJwtToken(user);
-            int userType = user.UserType;
+            var onboarding = await _onboardingService.GetStatusAsync(user);
 
-            if (userType == (int)UserType.BRAND)
-            {
-                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandCategory)
-                                       && !string.IsNullOrWhiteSpace(user.BrandSector)
-                                       && user.Goals != null
-                                       && user.Goals.Any();
-
-                if (!brandInfoFilled)
-                {
-                    return StatusCode(200, new
-                    {
-                        token,
-                        user,
-                        message = "Please complete your brand profile",
-                        code = Message.BRAND_INFO_NOT_FILLED,
-                        missingStep = "Goals, Sector or Category missing"
-                    });
-                }
-            }else if (user.UserType == (int)UserType.INFLUENCER)
-            {
-                var influencer = await _influencerService.GetInfluencerBasicByUserId(user.Id);
-                if (influencer == null)
-                {
-                    return StatusCode(200, new
-                    {
-                        token,
-                        user,
-                        message = "Please add your social media accounts",
-                        code = Message.INFLUENCER_INFO_NOT_FILLED,
-                        missingStep = "Socials missing"
-                    });
-                }
-                // Note: We don't check for plans here because user might be in the process of creating them
-                // The frontend will handle navigation to package creation if needed
-            }
-            
             return Ok(new
             {
                 token = token,
-                user = user
+                user = user,
+                onboarding
             });
         }
 
@@ -274,7 +239,10 @@ namespace inflan_api.Controllers
                 Email = request.Email,
                 Password = request.Password,
                 UserType = request.UserType,
-                BrandName = request.BrandName,
+                // Register.tsx collects the brand's name into the same "name" field it uses
+                // for an influencer's personal name — mirror it into BrandName so brand
+                // profile data is actually populated.
+                BrandName = request.UserType == (int)UserType.BRAND ? request.Name : request.BrandName,
                 Location = string.IsNullOrWhiteSpace(request.Location) ? "NG" : request.Location,
                 Currency = string.IsNullOrWhiteSpace(request.Currency)
                     ? (string.Equals(request.Location, "GB", StringComparison.OrdinalIgnoreCase) ? "GBP" : "NGN")

@@ -1,3 +1,4 @@
+using inflan_api.Attributes;
 using inflan_api.DTOs;
 using inflan_api.Interfaces;
 using inflan_api.Models;
@@ -540,6 +541,7 @@ public class PayoutController : ControllerBase
     /// Request a withdrawal - processed via Paystack (NGN) or TrueLayer (GBP)
     /// </summary>
     [HttpPost("withdraw/request")]
+    [RequireOnboardingComplete]
     public async Task<IActionResult> RequestWithdrawal([FromBody] WithdrawalRequestDto request)
     {
         var userId = GetCurrentUserId();

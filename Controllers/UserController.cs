@@ -16,13 +16,13 @@ namespace inflan_api.Controllers
     {
         private readonly IUserService _userService;
         private readonly IInfluencerService _influencerService;
-        private readonly IPlanService _planService;
+        private readonly IOnboardingService _onboardingService;
 
-        public UserController(IUserService userService,  IInfluencerService influencerService, IPlanService planService)
+        public UserController(IUserService userService, IInfluencerService influencerService, IOnboardingService onboardingService)
         {
             _userService = userService;
             _influencerService = influencerService;
-            _planService = planService;
+            _onboardingService = onboardingService;
         }
 
         [HttpGet("getAllUsers")]
@@ -64,49 +64,20 @@ namespace inflan_api.Controllers
             }
 
             int userType = user.UserType;
+            var onboarding = await _onboardingService.GetStatusAsync(user);
 
             if (userType == (int)UserType.BRAND)
             {
-                bool brandInfoFilled = !string.IsNullOrWhiteSpace(user.BrandCategory)
-                                       && !string.IsNullOrWhiteSpace(user.BrandSector)
-                                       && user.Goals != null
-                                       && user.Goals.Any();
-
-                if (!brandInfoFilled)
-                {
-                    return StatusCode(200, new
-                    {
-                        user,
-                        message = "Please complete your brand profile",
-                        code = Message.BRAND_INFO_NOT_FILLED,
-                        missingStep = "Goals, Sector or Category missing"
-                    });
-                }
-
-                // Return user data for brands
-                return Ok(new { user });
+                return Ok(new { user, onboarding });
             }
             else if (user.UserType == (int)UserType.INFLUENCER)
             {
                 var influencer = await _influencerService.GetInfluencerBasicByUserId(user.Id);
-                if (influencer == null)
-                {
-                    return StatusCode(200, new
-                    {
-                        user,
-                        influencer = (object?)null,
-                        message = "Please add your social media accounts",
-                        code = Message.INFLUENCER_INFO_NOT_FILLED,
-                        missingStep = "Socials missing"
-                    });
-                }
-
-                // Return both user and influencer data for influencers
-                return Ok(new { user, influencer });
+                return Ok(new { user, influencer, onboarding });
             }
 
             // Default return for other user types
-            return Ok(new { user });
+            return Ok(new { user, onboarding });
         }
         
         [Authorize]

@@ -259,22 +259,21 @@ namespace inflan_api.Controllers
                 }
             }
             
-            // SIMPLIFIED APPROACH: Only block if NO required social accounts provided
-            // Facebook is optional, so we only check Instagram, YouTube, and TikTok
-            bool allRequiredAccountsEmpty = string.IsNullOrEmpty(influencer.Instagram) &&
-                                           string.IsNullOrEmpty(influencer.YouTube) &&
-                                           string.IsNullOrEmpty(influencer.TikTok);
+            // Instagram and TikTok are the required minimum; YouTube and Facebook are optional.
+            var missingRequired = new List<string>();
+            if (string.IsNullOrEmpty(influencer.Instagram)) missingRequired.Add("Instagram");
+            if (string.IsNullOrEmpty(influencer.TikTok)) missingRequired.Add("TikTok");
 
-            Console.WriteLine($"Total errors found: {errors.Count}, All required accounts empty: {allRequiredAccountsEmpty}");
-            
-            if (allRequiredAccountsEmpty)
+            Console.WriteLine($"Total errors found: {errors.Count}, Missing required accounts: {string.Join(", ", missingRequired)}");
+
+            if (missingRequired.Any())
             {
-                Console.WriteLine("No required social accounts provided, returning 400:");
+                Console.WriteLine("Required social accounts missing, returning 400:");
 
                 return StatusCode(400, new {
-                    message = "Please provide at least one required social media account (Instagram, YouTube, or TikTok).",
+                    message = $"Please provide your {string.Join(" and ", missingRequired)} handle{(missingRequired.Count > 1 ? "s" : "")} — these are required.",
                     code = "SOCIAL_MEDIA_VALIDATION_FAILED",
-                    errors = new[] { "No required social media accounts provided" }
+                    errors = missingRequired.Select(platform => $"{platform} handle is required").ToArray()
                 });
             }
 

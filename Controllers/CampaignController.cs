@@ -78,7 +78,10 @@ namespace inflan_api.Controllers
                 TotalAmountInPence = campaign.TotalAmountInPence,
                 PaidAmountInPence = campaign.PaidAmountInPence,
                 ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
-                NumberOfMonths = plan?.NumberOfMonths ?? 3
+                NumberOfMonths = plan?.NumberOfMonths ?? 3,
+                IsPaymentOverdue = campaign.IsPaymentOverdue,
+                OverdueSince = campaign.OverdueSince,
+                IsExpired = campaign.IsExpired
             };
 
             return Ok(enrichedCampaign);
@@ -200,7 +203,10 @@ namespace inflan_api.Controllers
                     TotalAmountInPence = campaign.TotalAmountInPence,
                     PaidAmountInPence = campaign.PaidAmountInPence,
                     ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
-                    NumberOfMonths = plan?.NumberOfMonths ?? 3
+                    NumberOfMonths = plan?.NumberOfMonths ?? 3,
+                    IsPaymentOverdue = campaign.IsPaymentOverdue,
+                    OverdueSince = campaign.OverdueSince,
+                    IsExpired = campaign.IsExpired
                 });
             }
 
@@ -278,7 +284,10 @@ namespace inflan_api.Controllers
                     TotalAmountInPence = campaign.TotalAmountInPence,
                     PaidAmountInPence = campaign.PaidAmountInPence,
                     ReleasedToInfluencerInPence = campaign.ReleasedToInfluencerInPence,
-                    NumberOfMonths = plan?.NumberOfMonths ?? 3
+                    NumberOfMonths = plan?.NumberOfMonths ?? 3,
+                    IsPaymentOverdue = campaign.IsPaymentOverdue,
+                    OverdueSince = campaign.OverdueSince,
+                    IsExpired = campaign.IsExpired
                 });
             }
 
@@ -418,6 +427,32 @@ namespace inflan_api.Controllers
                 message,
                 campaign,
                 code = "CAMPAIGN_COMPLETED"
+            });
+        }
+
+        [HttpPost("cancelCampaign/{campaignId}")]
+        [Authorize]
+        public async Task<IActionResult> CancelCampaign(int campaignId)
+        {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int brandId = int.Parse(userIdClaim.Value);
+            var (success, message) = await _campaignService.CancelCampaignAsync(campaignId, brandId);
+
+            if (!success)
+                return StatusCode(400, new {
+                    message,
+                    code = "CAMPAIGN_CANCEL_FAILED"
+                });
+
+            return Ok(new {
+                message,
+                code = "CAMPAIGN_CANCELLED"
             });
         }
 

@@ -328,6 +328,44 @@ public class EmailService : IEmailService
         await SendEmailAsync(influencerEmail, subject, body);
     }
 
+    public async Task SendCampaignCancelledNotificationAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName)
+    {
+        var subject = $"Booking Request Cancelled: {projectName}";
+
+        var content = $@"
+            <div style=""background-color: #FEF3F2; border-left: 4px solid #F04438; padding: 20px; border-radius: 8px; margin: 20px 0;"">
+                <p style=""margin: 0; font-size: 16px; line-height: 1.6; color: #344054; font-family: 'Inter', Arial, sans-serif;"">
+                    {brandName} has cancelled this booking request before any payment was made. No action is needed on your part.
+                </p>
+            </div>
+
+            <table cellpadding=""0"" cellspacing=""0"" border=""0"" width=""100%"" style=""margin: 24px 0;"">
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign Name</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 18px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{projectName}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style=""padding: 12px 0; border-bottom: 1px solid #EAECF0;"">
+                        <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Campaign ID</p>
+                        <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{campaignId}</p>
+                    </td>
+                </tr>
+            </table>";
+
+        var dashboardUrl = "https://dev.inflan.com/influencer/dashboard/bookings";
+        var body = GetEmailTemplate(
+            "Booking Cancelled",
+            $"Dear {influencerName},",
+            content,
+            "View Your Bookings",
+            dashboardUrl
+        );
+
+        await SendEmailAsync(influencerEmail, subject, body);
+    }
+
     public async Task SendCampaignCompletedReviewRequestAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName)
     {
         var subject = $"Campaign Completed: {projectName}";
@@ -990,6 +1028,10 @@ public class EmailService : IEmailService
         var totalAmount = (amountInPence + platformFeeInPence) / 100m;
         var amountDisplay = $"{currencySymbol}{totalAmount:N2}";
         var dueDateDisplay = dueDate.ToString("dddd, MMMM d, yyyy");
+        // milestoneNumber 0 is the convention for a full/one-time payment with no
+        // individual milestone schedule — label it plainly rather than "Milestone #0".
+        var milestoneRowLabel = milestoneNumber == 0 ? "Payment type" : "Milestone";
+        var milestoneRowValue = milestoneNumber == 0 ? "Full payment" : $"#{milestoneNumber}";
 
         var isOverdue = daysUntilDue <= 0;
 
@@ -1002,11 +1044,13 @@ public class EmailService : IEmailService
         string ctaText;
         string urgencyLine;
 
+        var paymentNoun = milestoneNumber == 0 ? "payment" : "milestone";
+
         if (isOverdue)
         {
-            title = "Milestone Payment Overdue";
+            title = milestoneNumber == 0 ? "Payment Overdue" : "Milestone Payment Overdue";
             subject = $"Action Required: Payment overdue for \"{projectName}\"";
-            headlineText = "This milestone is now overdue";
+            headlineText = $"This {paymentNoun} is now overdue";
             headlineEmoji = "⚠️";
             headlineBg = "#FEF3F2";
             headlineBorder = "#F04438";
@@ -1017,15 +1061,15 @@ public class EmailService : IEmailService
         }
         else
         {
-            title = "Milestone Payment Reminder";
-            subject = $"Reminder: Milestone payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")} — \"{projectName}\"";
+            title = milestoneNumber == 0 ? "Payment Reminder" : "Milestone Payment Reminder";
+            subject = $"Reminder: Payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")} — \"{projectName}\"";
             headlineText = $"Payment due in {daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
             headlineEmoji = "🔔";
             headlineBg = "#FFFAEB";
             headlineBorder = "#F79009";
             ctaText = "Review & Pay";
             urgencyLine =
-                $"This milestone is due on {dueDateDisplay}. " +
+                $"This {paymentNoun} is due on {dueDateDisplay}. " +
                 "Please complete the payment before the due date to avoid disruption to the campaign.";
         }
 
@@ -1051,8 +1095,8 @@ public class EmailService : IEmailService
                             </tr>
                             <tr>
                                 <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
-                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Milestone</p>
-                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{milestoneNumber}</p>
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">{milestoneRowLabel}</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{milestoneRowValue}</p>
                                 </td>
                             </tr>
                             <tr>
@@ -1117,6 +1161,11 @@ public class EmailService : IEmailService
         var dueDateDisplay = dueDate.ToString("dddd, MMMM d, yyyy");
         var isOverdue = daysUntilDue <= 0;
         var dayWord = $"{daysUntilDue} day{(daysUntilDue == 1 ? "" : "s")}";
+        // milestoneNumber 0 is the convention for a full/one-time payment with no
+        // individual milestone schedule — label it plainly rather than "milestone #0".
+        var milestoneRowLabel = milestoneNumber == 0 ? "Payment type" : "Milestone";
+        var milestoneRowValue = milestoneNumber == 0 ? "Full payment" : $"#{milestoneNumber}";
+        var paymentDescriptor = milestoneNumber == 0 ? $"payment on \"{projectName}\"" : $"payment for milestone #{milestoneNumber} on \"{projectName}\"";
 
         var headlineBg = isOverdue ? "#FEF3F2" : "#FFFAEB";
         var headlineBorder = isOverdue ? "#F04438" : "#F79009";
@@ -1128,8 +1177,8 @@ public class EmailService : IEmailService
             : $"Upcoming payment for \"{projectName}\" — due in {dayWord}";
         var headlineText = isOverdue ? "The brand's payment is overdue" : $"The brand's payment is due in {dayWord}";
         var urgencyLine = isOverdue
-            ? $"{brandName}'s payment for milestone #{milestoneNumber} on \"{projectName}\" was due on {dueDateDisplay} and hasn't been completed yet. You'll receive your payout once the brand pays — no action is needed from you."
-            : $"{brandName}'s payment for milestone #{milestoneNumber} on \"{projectName}\" is due on {dueDateDisplay}. You'll receive your payout once it's completed.";
+            ? $"{brandName}'s {paymentDescriptor} was due on {dueDateDisplay} and hasn't been completed yet. You'll receive your payout once the brand pays — no action is needed from you."
+            : $"{brandName}'s {paymentDescriptor} is due on {dueDateDisplay}. You'll receive your payout once it's completed.";
 
         var content = $@"
             <div style=""background-color: {headlineBg}; border-left: 4px solid {headlineBorder}; padding: 20px; border-radius: 8px; margin: 20px 0;"">
@@ -1153,8 +1202,8 @@ public class EmailService : IEmailService
                             </tr>
                             <tr>
                                 <td style=""padding: 8px 0; border-bottom: 1px solid #EAECF0;"">
-                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">Milestone</p>
-                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">#{milestoneNumber}</p>
+                                    <p style=""margin: 0; font-size: 14px; color: #667085; font-family: 'Inter', Arial, sans-serif;"">{milestoneRowLabel}</p>
+                                    <p style=""margin: 4px 0 0 0; font-size: 16px; font-weight: 600; color: #101828; font-family: 'Inter', Arial, sans-serif;"">{milestoneRowValue}</p>
                                 </td>
                             </tr>
                             <tr>

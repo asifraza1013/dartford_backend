@@ -35,4 +35,11 @@ public class CampaignResponseDto
     public long PaidAmountInPence { get; set; }
     public long ReleasedToInfluencerInPence { get; set; }
     public int NumberOfMonths { get; set; }
+
+    // Campaign-level payment deadline tracking
+    public bool IsPaymentOverdue { get; set; }
+    public DateTime? OverdueSince { get; set; }
+
+    // True once CampaignEndDate has passed while CampaignStatus is still ACTIVE.
+    public bool IsExpired { get; set; }
 }

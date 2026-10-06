@@ -25,4 +25,11 @@ public interface ICampaignService
     Task<(bool Success, string Message)> RejectSignedContractAsync(int campaignId, int influencerId, string? reason = null);
     Task<(bool Success, string Message)> ActivateCampaignAfterPaymentAsync(int campaignId);
     Task<(bool Success, string Message, Campaign? Campaign)> CompleteCampaignAsync(int campaignId, int brandId);
+
+    /// <summary>
+    /// Cancels a booking request. Only allowed before any payment has been made — once a
+    /// campaign has moved to ACTIVE (first payment), use CompleteCampaignAsync instead so no
+    /// refund flow is needed.
+    /// </summary>
+    Task<(bool Success, string Message)> CancelCampaignAsync(int campaignId, int brandId);
 }

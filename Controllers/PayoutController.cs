@@ -236,16 +236,14 @@ public class PayoutController : ControllerBase
         var pendingCommission = (long)(pendingGross * influencerFeePercent / 100m);
         var pendingNet = pendingGross - pendingCommission;
 
-        // Overdue — the subset of unpaid milestones whose due date has passed. This mirrors
-        // the brand-side overdue figure (GetBrandOutstandingBalanceDetailedAsync) but is
-        // expressed from the influencer's perspective: gross owed, minus the influencer
-        // platform fee. We use the milestone gross (AmountInPence) so the headline matches
-        // what the brand owes, and apply the influencer fee for the net/commission split so
-        // it stays consistent with the pending breakdown above.
-        var unpaidMilestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(userId);
-        var today = DateTime.UtcNow.Date;
-        var overdueMilestones = unpaidMilestones.Where(m => m.DueDate < today).ToList();
-        var overdueGross = overdueMilestones.Sum(m => m.AmountInPence);
+        // Overdue — the subset of unpaid milestones whose due date has passed, PLUS the
+        // uncovered-balance portion of payable campaigns past their end date (ONE_TIME /
+        // not-yet-scheduled campaigns never get a PaymentMilestone row at all). This must
+        // stay in exact sync with GetUpcomingMilestones' per-item `isOverdue` flags below —
+        // they share GetOverdueItemsAsync so the headline total here always equals the sum
+        // of items the "Outstanding"/drill-down views mark as overdue.
+        var overdueItems = await GetOverdueItemsAsync(userId);
+        var overdueGross = overdueItems.Sum(i => i.AmountInPence);
         var overdueCommission = (long)(overdueGross * influencerFeePercent / 100m);
         var overdueNet = overdueGross - overdueCommission;
 
@@ -269,9 +267,59 @@ public class PayoutController : ControllerBase
             overdueNetInPence = overdueNet,
             overdueCommissionInPence = overdueCommission,
             overdueGrossInPence = overdueGross,
-            overdueMilestoneCount = overdueMilestones.Count,
-            hasOverdue = overdueMilestones.Count > 0
+            overdueMilestoneCount = overdueItems.Count,
+            hasOverdue = overdueItems.Count > 0
         });
+    }
+
+    /// <summary>
+    /// Single source of truth for "what's overdue" for an influencer: real PENDING/OVERDUE
+    /// milestones past their due date, plus the uncovered-balance portion of payable
+    /// campaigns (ONE_TIME, or not-yet-scheduled MILESTONE campaigns — these never get a
+    /// PaymentMilestone row) whose end date has passed. GetEarningsSummary's headline
+    /// "Overdue" total and GetUpcomingMilestones' per-item `isOverdue` flags both derive
+    /// from this so they can't drift apart the way they used to.
+    /// </summary>
+    private async Task<List<(long AmountInPence, int? MilestoneId)>> GetOverdueItemsAsync(int influencerId)
+    {
+        var now = DateTime.UtcNow;
+        var result = new List<(long, int?)>();
+
+        var unpaidMilestones = await _milestoneRepo.GetUpcomingByInfluencerIdAsync(influencerId);
+        result.AddRange(unpaidMilestones
+            .Where(m => m.DueDate < now)
+            .Select(m => ((long)m.AmountInPence, (int?)m.Id)));
+
+        var campaigns = (await _campaignRepo.GetCampaignsByInfluencerId(influencerId)).ToList();
+        var payableCampaigns = campaigns.Where(c =>
+            c.CampaignStatus != (int)CampaignStatus.CANCELLED
+            && ((c.InfluencerAcceptedAt.HasValue
+                    && c.ContractSignedAt.HasValue
+                    && c.SignatureApprovedAt.HasValue)
+                || c.CampaignStatus >= (int)CampaignStatus.AWAITING_PAYMENT));
+
+        long EffectiveTotal(Campaign c) =>
+            c.TotalAmountInPence > 0 ? c.TotalAmountInPence : (long)(c.Amount * 100);
+
+        var coveredByCampaign = unpaidMilestones
+            .GroupBy(m => m.CampaignId)
+            .ToDictionary(g => g.Key, g => g.Sum(m => m.AmountInPence));
+
+        foreach (var c in payableCampaigns)
+        {
+            var remaining = Math.Max(0, EffectiveTotal(c) - c.PaidAmountInPence);
+            coveredByCampaign.TryGetValue(c.Id, out var covered);
+            var uncovered = Math.Max(0, remaining - covered);
+            if (uncovered <= 0) continue;
+
+            var dueDate = c.CampaignEndDate.ToDateTime(TimeOnly.MinValue);
+            if (dueDate < now)
+            {
+                result.Add((uncovered, null));
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -363,7 +411,14 @@ public class PayoutController : ControllerBase
             dueDate = (DateTime?)m.DueDate,
             m.Status,
             statusText = GetMilestoneStatusText(m.Status),
-            isOverdue = m.DueDate < now && m.Status == (int)MilestoneStatus.PENDING,
+            // GetUpcomingByInfluencerIdAsync already filters to PENDING/OVERDUE only, but
+            // check both explicitly rather than just PENDING — the reminder background
+            // service flips a milestone's Status to OVERDUE once its due date passes, and
+            // this flag must still read "overdue" afterward instead of silently going
+            // false (that bug used to desync this list's badge/sort from the earnings
+            // summary's own overdue total, which was status-agnostic).
+            isOverdue = m.DueDate < now
+                && (m.Status == (int)MilestoneStatus.PENDING || m.Status == (int)MilestoneStatus.OVERDUE),
             isUnscheduled = false
         }));
 

@@ -96,8 +96,21 @@ public class CampaignService : ICampaignService
         var existing = await _campaignRepository.GetById(id);
         if (existing == null) return false;
 
-        existing.CampaignStatus = campaign.CampaignStatus != 1 ? campaign.CampaignStatus : existing.CampaignStatus;
-        existing.PaymentStatus = campaign.PaymentStatus != 1 ? campaign.PaymentStatus : existing.PaymentStatus;
+        // Only apply CampaignStatus if the caller actually set one — the C# default for
+        // an unset int is 0, which isn't even a valid CampaignStatus value (the enum
+        // starts at 1/DRAFT), so 0 unambiguously means "not provided".
+        if (campaign.CampaignStatus != 0)
+        {
+            existing.CampaignStatus = campaign.CampaignStatus;
+        }
+
+        // PaymentStatus is deliberately NOT settable through this generic endpoint. It's
+        // owned exclusively by the payment subsystem (PaymentOrchestrator.HandleSuccessfulPayment /
+        // ReconcileCampaignPaymentAsync), which is the only place that correctly derives
+        // it from PaidAmountInPence vs TotalAmountInPence. A stray partial-object caller
+        // here (e.g. `new Campaign { PaymentStatus = ... }`) would otherwise silently
+        // stomp a correct COMPLETED/PARTIAL status back to an invalid default via the
+        // old sentinel check — see git history for the incident this fixed.
 
         if (campaign.InstructionDocuments != null && campaign.InstructionDocuments.Any())
         {
@@ -490,6 +503,66 @@ public class CampaignService : ICampaignService
             $"Campaign completed. Leave a review for {influencer?.Name ?? "the influencer"}.");
 
         return (true, "Campaign marked as completed.", campaign);
+    }
+
+    public async Task<(bool Success, string Message)> CancelCampaignAsync(int campaignId, int brandId)
+    {
+        var campaign = await _campaignRepository.GetById(campaignId);
+
+        if (campaign == null)
+            return (false, "Campaign not found");
+
+        // Only the owning brand may cancel a booking request.
+        if (campaign.BrandId != brandId)
+            return (false, "You are not authorized to cancel this campaign");
+
+        // Only allowed before any payment has been made. Once a campaign is ACTIVE (or
+        // beyond), the brand should use "Mark as Complete" instead — cancelling a paid
+        // campaign would require a refund flow, which is out of scope here.
+        var cancellableStatuses = new[]
+        {
+            (int)CampaignStatus.DRAFT,
+            (int)CampaignStatus.AWAITING_CONTRACT_SIGNATURE,
+            (int)CampaignStatus.AWAITING_SIGNATURE_APPROVAL,
+            (int)CampaignStatus.AWAITING_PAYMENT
+        };
+
+        if (!cancellableStatuses.Contains(campaign.CampaignStatus) || campaign.PaidAmountInPence > 0)
+            return (false, "This booking can no longer be cancelled. Once payment has been made, use \"Mark as Complete\" instead.");
+
+        campaign.CampaignStatus = (int)CampaignStatus.CANCELLED;
+        await _campaignRepository.Update(campaign);
+
+        // Best-effort notification to the influencer — a cancellation failure here shouldn't
+        // block the cancellation itself.
+        var influencer = await _userService.GetUserById(campaign.InfluencerId);
+        var brand = await _userService.GetUserById(campaign.BrandId);
+        if (influencer != null && brand != null)
+        {
+            try
+            {
+                await _emailService.SendCampaignCancelledNotificationAsync(
+                    influencer.Email ?? "",
+                    influencer.Name ?? "",
+                    campaign.Id,
+                    campaign.ProjectName,
+                    brand.Name ?? "The brand"
+                );
+            }
+            catch
+            {
+                // Email delivery issues shouldn't fail the cancellation.
+            }
+
+            await _notificationService.CreateCampaignNotificationAsync(
+                campaign.InfluencerId,
+                campaign.Id,
+                campaign.ProjectName,
+                NotificationType.CampaignUpdate,
+                $"{brand.Name ?? "The brand"} cancelled this booking request.");
+        }
+
+        return (true, "Booking request cancelled.");
     }
 
     public async Task<(bool Success, string Message)> ApproveSignedContractAsync(int campaignId, int influencerId)

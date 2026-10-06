@@ -29,6 +29,12 @@ public interface IEmailService
     Task SendInfluencerResponseNotificationAsync(string brandEmail, string brandName, int campaignId, string projectName, bool accepted, string? contractPdfPath = null);
 
     /// <summary>
+    /// Sends email notification to the influencer when the brand cancels a booking request
+    /// before any payment has been made.
+    /// </summary>
+    Task SendCampaignCancelledNotificationAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName);
+
+    /// <summary>
     /// Sends email notification to influencer when a new campaign booking is created
     /// </summary>
     Task SendNewCampaignNotificationAsync(string influencerEmail, string influencerName, int campaignId, string projectName, string brandName);

@@ -45,6 +45,12 @@ namespace inflan_api
             builder.Services.Configure<MilestoneReminderConfig>(
                 builder.Configuration.GetSection(MilestoneReminderConfig.SectionName));
 
+            // Configure Campaign Payment Deadline (campaign-level reminders + overdue
+            // flagging for balance not covered by any tracked milestone, e.g. ONE_TIME
+            // campaigns) settings
+            builder.Services.Configure<CampaignPaymentDeadlineConfig>(
+                builder.Configuration.GetSection(CampaignPaymentDeadlineConfig.SectionName));
+
             // Configure Scheduled-post reminder (notify influencer ~30m before
             // their post goes live)
             builder.Services.Configure<ScheduledPostReminderConfig>(
@@ -172,6 +178,7 @@ namespace inflan_api
 
             // Register background service for milestone payment reminders + overdue notices
             builder.Services.AddHostedService<MilestoneReminderBackgroundService>();
+            builder.Services.AddHostedService<CampaignPaymentDeadlineBackgroundService>();
 
             // Register background service for "post going live soon" reminders
             builder.Services.AddHostedService<ScheduledPostReminderBackgroundService>();

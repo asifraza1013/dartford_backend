@@ -15,6 +15,7 @@ public class PaymentModuleController : ControllerBase
     private readonly IPaymentOrchestrator _paymentOrchestrator;
     private readonly IMilestoneService _milestoneService;
     private readonly IPaymentMethodRepository _paymentMethodRepo;
+    private readonly ICampaignRepository _campaignRepo;
     private readonly ILogger<PaymentModuleController> _logger;
     private readonly IServiceProvider _serviceProvider;
 
@@ -22,12 +23,14 @@ public class PaymentModuleController : ControllerBase
         IPaymentOrchestrator paymentOrchestrator,
         IMilestoneService milestoneService,
         IPaymentMethodRepository paymentMethodRepo,
+        ICampaignRepository campaignRepo,
         ILogger<PaymentModuleController> logger,
         IServiceProvider serviceProvider)
     {
         _paymentOrchestrator = paymentOrchestrator;
         _milestoneService = milestoneService;
         _paymentMethodRepo = paymentMethodRepo;
+        _campaignRepo = campaignRepo;
         _logger = logger;
         _serviceProvider = serviceProvider;
     }
@@ -392,6 +395,14 @@ public class PaymentModuleController : ControllerBase
     [Authorize]
     public async Task<IActionResult> GetCampaignMilestones(int campaignId)
     {
+        var campaign = await _campaignRepo.GetById(campaignId);
+        if (campaign == null)
+            return NotFound(new { message = "Campaign not found" });
+
+        var userId = GetCurrentUserId();
+        if (campaign.BrandId != userId && campaign.InfluencerId != userId)
+            return StatusCode(403, new { message = "You are not authorized to view this campaign's payment details" });
+
         var milestones = await _milestoneService.GetCampaignMilestonesAsync(campaignId);
 
         return Ok(milestones.Select(m => new

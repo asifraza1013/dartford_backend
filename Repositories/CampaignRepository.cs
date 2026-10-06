@@ -73,4 +73,17 @@ public class CampaignRepository : ICampaignRepository
                        (c.CampaignStatus == 5 || c.CampaignStatus == 6)) // AWAITING_PAYMENT or ACTIVE status
             .ToListAsync();
     }
+
+    public async Task<IEnumerable<Campaign>> GetWithOutstandingBalanceAsync()
+    {
+        // CampaignStatus: ACTIVE=6, COMPLETED=7 — a brand can mark a campaign COMPLETED
+        // while still owing money today (nothing currently blocks that), so COMPLETED
+        // campaigns still need to be swept until the balance is actually paid.
+        return await _context.Campaigns
+            .Include(c => c.Brand)
+            .Include(c => c.Influencer)
+            .Where(c => (c.CampaignStatus == 6 || c.CampaignStatus == 7) &&
+                       c.PaidAmountInPence < c.TotalAmountInPence)
+            .ToListAsync();
+    }
 }

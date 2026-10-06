@@ -120,6 +120,14 @@ namespace inflan_api.Controllers
             int userId = int.Parse(userIdClaim.Value);
             influencer.UserId = userId;
 
+            // Normalize handles up front so a whitespace-only value (e.g. a stray space
+            // in an optional field) is never treated as "provided" by the IsNullOrEmpty
+            // checks below — it would otherwise count as a connected platform.
+            influencer.Instagram = influencer.Instagram?.Trim();
+            influencer.YouTube = influencer.YouTube?.Trim();
+            influencer.TikTok = influencer.TikTok?.Trim();
+            influencer.Facebook = influencer.Facebook?.Trim();
+
             // Check if social account already exists for another user
             var existingInfluencer = await _influencerService.FindBySocialAccount(
                 influencer.Instagram,
@@ -178,17 +186,21 @@ namespace inflan_api.Controllers
                 facebookUsername: influencer.Facebook
             );
 
-            // Check for errors and set follower counts
+            // Check for errors and set follower counts. Instagram/TikTok are required —
+            // a failed lookup there must block signup (the user needs to know exactly which
+            // handle is wrong). YouTube/Facebook are optional — a failed lookup there is only
+            // a non-blocking warning, since the account itself isn't mandatory.
             var errors = new List<string>();
-            
+            var requiredAccountErrors = new Dictionary<string, string>();
+
             Console.WriteLine($"Processing follower results. Total platforms: {followerResults.Count}");
-            
-            // Instagram
+
+            // Instagram (required)
             if (followerResults.ContainsKey("Instagram"))
             {
                 var result = followerResults["Instagram"];
                 Console.WriteLine($"Instagram - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.Instagram}'");
-                
+
                 if (!string.IsNullOrEmpty(influencer.Instagram))
                 {
                     if (result.Success && result.Followers > 0)
@@ -197,17 +209,18 @@ namespace inflan_api.Controllers
                     }
                     else
                     {
-                        errors.Add($"Instagram account '{influencer.Instagram}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                        requiredAccountErrors["instagram"] =
+                            $"We couldn't find an Instagram account for \"{influencer.Instagram}\". Please check the handle and try again.";
                     }
                 }
             }
-            
-            // YouTube
+
+            // YouTube (optional)
             if (followerResults.ContainsKey("YouTube"))
             {
                 var result = followerResults["YouTube"];
                 Console.WriteLine($"YouTube - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.YouTube}'");
-                
+
                 if (!string.IsNullOrEmpty(influencer.YouTube))
                 {
                     if (result.Success && result.Followers > 0)
@@ -220,13 +233,13 @@ namespace inflan_api.Controllers
                     }
                 }
             }
-            
-            // TikTok
+
+            // TikTok (required)
             if (followerResults.ContainsKey("TikTok"))
             {
                 var result = followerResults["TikTok"];
                 Console.WriteLine($"TikTok - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.TikTok}'");
-                
+
                 if (!string.IsNullOrEmpty(influencer.TikTok))
                 {
                     if (result.Success && result.Followers > 0)
@@ -235,17 +248,18 @@ namespace inflan_api.Controllers
                     }
                     else
                     {
-                        errors.Add($"TikTok account '{influencer.TikTok}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
+                        requiredAccountErrors["tiktok"] =
+                            $"We couldn't find a TikTok account for \"{influencer.TikTok}\". Please check the handle and try again.";
                     }
                 }
             }
-            
-            // Facebook
+
+            // Facebook (optional)
             if (followerResults.ContainsKey("Facebook"))
             {
                 var result = followerResults["Facebook"];
                 Console.WriteLine($"Facebook - Success: {result.Success}, Followers: {result.Followers}, Provided: '{influencer.Facebook}'");
-                
+
                 if (!string.IsNullOrEmpty(influencer.Facebook))
                 {
                     if (result.Success && result.Followers > 0)
@@ -257,6 +271,23 @@ namespace inflan_api.Controllers
                         errors.Add($"Facebook account '{influencer.Facebook}': {(result.Success ? $"No followers found (got {result.Followers})" : result.ErrorMessage)}");
                     }
                 }
+            }
+
+            // A required handle that was entered but couldn't actually be found blocks
+            // signup outright — the account not existing is functionally the same as it
+            // being missing, and the user needs a clear, specific reason why they can't move on.
+            if (requiredAccountErrors.Any())
+            {
+                Console.WriteLine("Required social account(s) could not be verified, returning 400:");
+                foreach (var kv in requiredAccountErrors)
+                    Console.WriteLine($"  - {kv.Key}: {kv.Value}");
+
+                return StatusCode(400, new {
+                    message = "We couldn't verify one or more of your required social accounts. Please check the handles below and try again.",
+                    code = "REQUIRED_SOCIAL_ACCOUNT_NOT_FOUND",
+                    errors = requiredAccountErrors.Values.ToArray(),
+                    fieldErrors = requiredAccountErrors
+                });
             }
             
             // Instagram and TikTok are the required minimum; YouTube and Facebook are optional.

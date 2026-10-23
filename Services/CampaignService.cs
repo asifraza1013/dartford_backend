@@ -58,6 +58,15 @@ public class CampaignService : ICampaignService
         campaign.Currency = plan.Currency;
         campaign.Amount = plan.Price;
 
+        // Set the full amount owed from day one. Previously this stayed 0 until a
+        // milestone was created or a payment succeeded, which made
+        // CampaignPaymentDeadlineBackgroundService's "PaidAmountInPence < TotalAmountInPence"
+        // check permanently false for any campaign the brand never set up a payment
+        // plan for — so a fully-ghosted, unpaid booking past its end date got zero
+        // reminders and zero overdue notices. Setting it here means the outstanding
+        // balance is correct and visible from the moment the campaign exists.
+        campaign.TotalAmountInPence = (long)(plan.Price * 100);
+
         // Set initial payment status to PENDING
         campaign.PaymentStatus = (int)PaymentStatus.PENDING;
 

@@ -76,13 +76,18 @@ public class CampaignRepository : ICampaignRepository
 
     public async Task<IEnumerable<Campaign>> GetWithOutstandingBalanceAsync()
     {
-        // CampaignStatus: ACTIVE=6, COMPLETED=7 — a brand can mark a campaign COMPLETED
-        // while still owing money today (nothing currently blocks that), so COMPLETED
+        // CampaignStatus: AWAITING_PAYMENT=5, ACTIVE=6, COMPLETED=7.
+        // AWAITING_PAYMENT is included because a campaign the brand never paid at all
+        // (no milestones created, no payment ever attempted) never leaves status 5 — it
+        // was previously invisible to this sweep entirely, so a fully-unpaid, ghosted
+        // booking past its end date got no reminders and no overdue notice.
+        // COMPLETED is included because a brand can mark a campaign COMPLETED while
+        // still owing money today (nothing currently blocks that), so COMPLETED
         // campaigns still need to be swept until the balance is actually paid.
         return await _context.Campaigns
             .Include(c => c.Brand)
             .Include(c => c.Influencer)
-            .Where(c => (c.CampaignStatus == 6 || c.CampaignStatus == 7) &&
+            .Where(c => (c.CampaignStatus == 5 || c.CampaignStatus == 6 || c.CampaignStatus == 7) &&
                        c.PaidAmountInPence < c.TotalAmountInPence)
             .ToListAsync();
     }

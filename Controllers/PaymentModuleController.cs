@@ -345,6 +345,46 @@ public class PaymentModuleController : ControllerBase
     }
 
     /// <summary>
+    /// Admin: manually run the campaign-level payment-deadline sweep (7/3/1-day reminders
+    /// and overdue notices for balance not covered by any milestone — ONE_TIME campaigns,
+    /// and any AWAITING_PAYMENT campaign the brand never set up milestones for) instead of
+    /// waiting for its 6-hour timer. For ops verification and testing.
+    /// </summary>
+    [HttpPost("admin/trigger-campaign-payment-deadline-sweep")]
+    [Authorize]
+    [AdminOnly]
+    public async Task<IActionResult> TriggerCampaignPaymentDeadlineSweep()
+    {
+        var hostedServices = _serviceProvider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
+        var backgroundService = hostedServices.OfType<Services.Payment.CampaignPaymentDeadlineBackgroundService>().FirstOrDefault();
+
+        if (backgroundService == null)
+            return BadRequest(new { success = false, message = "Campaign payment-deadline service not available" });
+
+        await backgroundService.ProcessAsync();
+        return Ok(new { success = true, message = "Campaign payment-deadline sweep triggered. Check logs for details." });
+    }
+
+    /// <summary>
+    /// Admin: manually run the per-milestone payment-reminder sweep instead of waiting for
+    /// its 6-hour timer. For ops verification and testing.
+    /// </summary>
+    [HttpPost("admin/trigger-milestone-reminder-sweep")]
+    [Authorize]
+    [AdminOnly]
+    public async Task<IActionResult> TriggerMilestoneReminderSweep()
+    {
+        var hostedServices = _serviceProvider.GetServices<Microsoft.Extensions.Hosting.IHostedService>();
+        var backgroundService = hostedServices.OfType<Services.Payment.MilestoneReminderBackgroundService>().FirstOrDefault();
+
+        if (backgroundService == null)
+            return BadRequest(new { success = false, message = "Milestone reminder service not available" });
+
+        await backgroundService.ProcessRemindersAsync();
+        return Ok(new { success = true, message = "Milestone reminder sweep triggered. Check logs for details." });
+    }
+
+    /// <summary>
     /// Get brand's outstanding balance (only overdue milestones trigger warning)
     /// </summary>
     [HttpGet("balance/brand/outstanding")]

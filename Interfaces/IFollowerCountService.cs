@@ -25,5 +25,15 @@ namespace inflan_api.Interfaces
         public string? Platform { get; set; }
         public DateTime? LastUpdated { get; set; }
         public Dictionary<string, object>? AdditionalData { get; set; }
+
+        /// <summary>
+        /// True when Success is false because the verification provider itself failed
+        /// (rate limited, out of credits, unreachable, malformed response) rather than
+        /// because the handle genuinely doesn't exist on the platform. Callers should
+        /// show a "try again shortly" message instead of blaming the handle when this
+        /// is set — telling someone their real account "couldn't be found" because a
+        /// third-party API is out of quota is actively misleading.
+        /// </summary>
+        public bool IsServiceError { get; set; }
     }
 }

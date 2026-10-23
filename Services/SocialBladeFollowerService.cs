@@ -61,8 +61,8 @@ namespace inflan_api.Services
 
             try
             {
-                var response = await MakeSocialBladeRequestAsync("instagram", username);
-                return ParseSocialBladeResponse(response, "Instagram");
+                var (document, statusCode) = await MakeSocialBladeRequestAsync("instagram", username);
+                return ParseSocialBladeResponse(document, statusCode, "Instagram");
             }
             catch (Exception ex)
             {
@@ -71,7 +71,8 @@ namespace inflan_api.Services
                 {
                     Success = false,
                     Platform = "Instagram",
-                    ErrorMessage = ex.Message
+                    ErrorMessage = ex.Message,
+                    IsServiceError = true
                 };
             }
         }
@@ -91,8 +92,8 @@ namespace inflan_api.Services
 
             try
             {
-                var response = await MakeSocialBladeRequestAsync("tiktok", username);
-                return ParseSocialBladeResponse(response, "TikTok");
+                var (document, statusCode) = await MakeSocialBladeRequestAsync("tiktok", username);
+                return ParseSocialBladeResponse(document, statusCode, "TikTok");
             }
             catch (Exception ex)
             {
@@ -101,7 +102,8 @@ namespace inflan_api.Services
                 {
                     Success = false,
                     Platform = "TikTok",
-                    ErrorMessage = ex.Message
+                    ErrorMessage = ex.Message,
+                    IsServiceError = true
                 };
             }
         }
@@ -120,8 +122,8 @@ namespace inflan_api.Services
 
             try
             {
-                var response = await MakeSocialBladeRequestAsync("facebook", username);
-                return ParseSocialBladeResponse(response, "Facebook");
+                var (document, statusCode) = await MakeSocialBladeRequestAsync("facebook", username);
+                return ParseSocialBladeResponse(document, statusCode, "Facebook");
             }
             catch (Exception ex)
             {
@@ -130,7 +132,8 @@ namespace inflan_api.Services
                 {
                     Success = false,
                     Platform = "Facebook",
-                    ErrorMessage = ex.Message
+                    ErrorMessage = ex.Message,
+                    IsServiceError = true
                 };
             }
         }
@@ -149,8 +152,8 @@ namespace inflan_api.Services
 
             try
             {
-                var response = await MakeSocialBladeRequestAsync("youtube", channelId);
-                return ParseSocialBladeResponse(response, "YouTube");
+                var (document, statusCode) = await MakeSocialBladeRequestAsync("youtube", channelId);
+                return ParseSocialBladeResponse(document, statusCode, "YouTube");
             }
             catch (Exception ex)
             {
@@ -159,7 +162,8 @@ namespace inflan_api.Services
                 {
                     Success = false,
                     Platform = "YouTube",
-                    ErrorMessage = ex.Message
+                    ErrorMessage = ex.Message,
+                    IsServiceError = true
                 };
             }
         }
@@ -170,7 +174,13 @@ namespace inflan_api.Services
             string? tiktokUsername = null,
             string? facebookUsername = null)
         {
-            var results = new Dictionary<string, FollowerCountResult>();
+            // Dictionary<,> is not safe for concurrent writes — multiple platform lookups
+            // run in parallel below and were silently dropping each other's entries (one
+            // platform's result would vanish from the map, which made the required-account
+            // check in InfluencerController skip that platform entirely instead of either
+            // validating or failing it). ConcurrentDictionary makes concurrent single-key
+            // writes safe.
+            var results = new System.Collections.Concurrent.ConcurrentDictionary<string, FollowerCountResult>();
             var tasks = new List<Task>();
 
             // Create tasks for each platform with username provided
@@ -209,10 +219,10 @@ namespace inflan_api.Services
             // Wait for all tasks to complete
             await Task.WhenAll(tasks);
 
-            return results;
+            return new Dictionary<string, FollowerCountResult>(results);
         }
 
-        private async Task<JsonDocument> MakeSocialBladeRequestAsync(string platform, string identifier)
+        private async Task<(JsonDocument Document, System.Net.HttpStatusCode StatusCode)> MakeSocialBladeRequestAsync(string platform, string identifier)
         {
             // Use the actual user-provided identifier (username)
             var queryIdentifier = identifier;
@@ -257,7 +267,7 @@ namespace inflan_api.Services
             // Social Blade returns structured error responses even for 404s
             try
             {
-                return JsonDocument.Parse(content);
+                return (JsonDocument.Parse(content), response.StatusCode);
             }
             catch (JsonException ex)
             {
@@ -272,30 +282,39 @@ namespace inflan_api.Services
                         error = $"HTTP {response.StatusCode}: Invalid JSON response"
                     }
                 });
-                return JsonDocument.Parse(errorResponse);
+                return (JsonDocument.Parse(errorResponse), response.StatusCode);
             }
         }
 
-        private FollowerCountResult ParseSocialBladeResponse(JsonDocument response, string platform)
+        // HTTP statuses that mean the provider itself is having a problem (out of
+        // credits/quota, rate limited, down) rather than "this handle doesn't exist".
+        // 404 is deliberately excluded — a clean not-found is genuinely about the handle.
+        private static bool IsProviderFailureStatus(System.Net.HttpStatusCode statusCode) =>
+            statusCode == System.Net.HttpStatusCode.PaymentRequired
+            || statusCode == System.Net.HttpStatusCode.TooManyRequests
+            || (int)statusCode >= 500;
+
+        private FollowerCountResult ParseSocialBladeResponse(JsonDocument response, System.Net.HttpStatusCode statusCode, string platform)
         {
             try
             {
                 var root = response.RootElement;
-                
+
                 // Check status first
                 if (root.TryGetProperty("status", out var statusObj))
                 {
                     if (statusObj.TryGetProperty("success", out var success) && !success.GetBoolean())
                     {
-                        var errorMessage = statusObj.TryGetProperty("error", out var error) 
-                            ? error.GetString() 
+                        var errorMessage = statusObj.TryGetProperty("error", out var error)
+                            ? error.GetString()
                             : "API request failed";
-                        
+
                         return new FollowerCountResult
                         {
                             Success = false,
                             Platform = platform,
-                            ErrorMessage = errorMessage
+                            ErrorMessage = errorMessage,
+                            IsServiceError = IsProviderFailureStatus(statusCode)
                         };
                     }
                 }
@@ -373,7 +392,8 @@ namespace inflan_api.Services
                 {
                     Success = false,
                     Platform = platform,
-                    ErrorMessage = $"Failed to parse response: {ex.Message}"
+                    ErrorMessage = $"Failed to parse response: {ex.Message}",
+                    IsServiceError = true
                 };
             }
         }

@@ -209,8 +209,9 @@ namespace inflan_api.Controllers
                     }
                     else
                     {
-                        requiredAccountErrors["instagram"] =
-                            $"We couldn't find an Instagram account for \"{influencer.Instagram}\". Please check the handle and try again.";
+                        requiredAccountErrors["instagram"] = result.IsServiceError
+                            ? "We're having trouble verifying Instagram accounts right now. Please try again in a few minutes."
+                            : $"We couldn't find an Instagram account for \"{influencer.Instagram}\". Please check the handle and try again.";
                     }
                 }
             }
@@ -248,8 +249,9 @@ namespace inflan_api.Controllers
                     }
                     else
                     {
-                        requiredAccountErrors["tiktok"] =
-                            $"We couldn't find a TikTok account for \"{influencer.TikTok}\". Please check the handle and try again.";
+                        requiredAccountErrors["tiktok"] = result.IsServiceError
+                            ? "We're having trouble verifying TikTok accounts right now. Please try again in a few minutes."
+                            : $"We couldn't find a TikTok account for \"{influencer.TikTok}\". Please check the handle and try again.";
                     }
                 }
             }

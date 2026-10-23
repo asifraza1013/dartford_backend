@@ -20,26 +20,16 @@ echo "📦 Deploying latest changes..."
 # Navigate to the CORRECT directory (inflat-api-server is the active one)
 cd /home/ec2-user/inflat-api-server
 
-# Stop existing processes more reliably
-echo "Stopping current API..."
-pkill -f "dotnet.*inflan_api.dll" || true
-sleep 3
-
-# Force kill if still running
-pkill -9 -f "dotnet.*inflan_api.dll" 2>/dev/null || true
-sleep 2
-
-# Kill any process holding port 8080
-echo "Ensuring port 8080 is free..."
-fuser -k 8080/tcp 2>/dev/null || true
-sleep 2
-
-# Verify no dotnet processes are running
-if pgrep -f "dotnet.*inflan_api.dll" > /dev/null; then
-    echo "WARNING: Dotnet processes still running, force killing all..."
-    pkill -9 -f dotnet 2>/dev/null || true
-    sleep 3
-fi
+# The API runs under systemd (inflat-api.service), not a raw backgrounded
+# process. Previous versions of this script killed the process with
+# pkill/fuser and relaunched it with nohup, completely bypassing systemd.
+# systemd's Restart=always kept trying to reclaim port 8080 in the
+# background and failing forever (hundreds of thousands of restarts over
+# time) because the nohup'd process it could never manage held the port.
+# Stopping via systemd here, and only via systemd, keeps there being
+# exactly one process manager for this service.
+echo "Stopping current API (systemd)..."
+sudo systemctl stop inflat-api.service
 
 # Pull latest code
 echo "Pulling latest code from master..."
@@ -54,51 +44,34 @@ dotnet build -c Release
 echo "Running database migrations..."
 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet ef database update
 
-# Clear old logs
-echo "Clearing old logs..."
-> app.log
+# Start via systemd
+echo "Starting API (systemd)..."
+sudo systemctl start inflat-api.service
 
-# Start application in Production mode with ALL required environment variables
-# Note: Using sh -c to ensure environment variables are passed correctly to dotnet
-echo "Starting API in Production mode with database connection..."
-nohup sh -c 'PORT=8080 ConnectionStrings__DefaultConnection="Host=localhost;Database=inflan_db;Username=postgres;Password=postgres123" dotnet run --environment Production' > app.log 2>&1 &
-
-# Wait for API to fully start and find the actual dotnet process
+# Wait for it to come up and confirm systemd — not a stray process — owns it
 echo "Waiting for API to start (checking every 5 seconds, max 60 seconds)..."
-NEW_PID=""
+STARTED=""
 for i in {1..12}; do
     sleep 5
-
-    # Try to find the actual dotnet process running inflan_api.dll
-    NEW_PID=$(pgrep -f "dotnet.*inflan_api.dll" | head -1)
-
-    if [ -n "$NEW_PID" ] && (grep -q "Application started" app.log 2>/dev/null || netstat -tuln | grep -q ":8080 "); then
-        echo "✓ API started successfully after $((i*5)) seconds with PID: $NEW_PID"
+    if sudo systemctl is-active --quiet inflat-api.service && ss -tln | grep -q ":8080 "; then
+        STARTED=1
+        echo "✓ API started successfully after $((i*5)) seconds"
         break
     fi
-
-    if grep -q "Failed to bind" app.log 2>/dev/null; then
-        echo "✗ ERROR: Failed to bind to port 8080"
-        tail -20 app.log
+    if ! sudo systemctl is-active --quiet inflat-api.service; then
+        echo "✗ ERROR: inflat-api.service is not active"
+        sudo systemctl status inflat-api.service --no-pager | head -20
         exit 1
     fi
     echo "Still waiting... ($i/12)"
 done
 
-# Kill any duplicate process on port 10000 (sometimes dotnet spawns a second process)
-echo "Cleaning up any duplicate processes..."
-pkill -9 -f "urls=http://0.0.0.0:10000" 2>/dev/null || true
-sleep 2
-
-# Verify the correct process is running
-if [ -n "$NEW_PID" ] && ps -p $NEW_PID > /dev/null 2>&1; then
-    echo "✓ Process $NEW_PID is running and verified"
-    echo "Process details:"
-    ps -p $NEW_PID -o pid,etime,cmd
+if [ -n "$STARTED" ]; then
+    echo "✓ Service verified, process details:"
+    sudo systemctl status inflat-api.service --no-pager | head -10
 else
-    echo "✗ WARNING: Could not verify API process is running!"
-    echo "Checking all dotnet processes:"
-    ps aux | grep dotnet | grep -v grep
+    echo "✗ WARNING: Could not verify API is listening on 8080!"
+    sudo systemctl status inflat-api.service --no-pager | head -20
 fi
 
 # Test API locally
@@ -129,13 +102,13 @@ else
     if curl -s https://api.inflan.com/api/auth/getUser/1 > /dev/null; then
         echo "✅ Fixed after nginx restart!"
     else
-        echo "❌ Still not working. Check logs: tail -f app.log"
+        echo "❌ Still not working. Check logs: sudo journalctl -u inflat-api -f"
     fi
 fi
 
 echo ""
 echo "Deployment complete. API logs:"
-tail -10 app.log
+sudo journalctl -u inflat-api.service -n 20 --no-pager
 EOF
 
 echo "✅ Done! API: https://api.inflan.com"

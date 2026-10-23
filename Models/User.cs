@@ -14,7 +14,8 @@ namespace inflan_api.Models
         [EmailAddress(ErrorMessage = "Please enter a valid email address")]
         public string? Email { get; set; }
         [Required(ErrorMessage = "Password is required")]
-        [MinLength(6, ErrorMessage = "Password must be at least 6 characters")]
+        [MinLength(8, ErrorMessage = "Password must be at least 8 characters")]
+        [RegularExpression(@"^(?=.*[A-Za-z])(?=.*\d).+$", ErrorMessage = "Password must include at least one letter and one number")]
         public string? Password { get; set; }
         public string? BrandName { get; set; }
         public string? BrandCategory { get; set; }

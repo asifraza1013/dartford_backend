@@ -29,4 +29,12 @@
     <Folder Include="wwwroot\uploads\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- wwwroot is gitignored (it's where user uploads land), so assets the
+         app itself needs — like the invoice logo — are embedded resources
+         instead, compiled into the DLL rather than depending on a file
+         surviving a deploy. -->
+    <EmbeddedResource Include="Assets\inflan-logo.png" />
+  </ItemGroup>
+
 </Project>

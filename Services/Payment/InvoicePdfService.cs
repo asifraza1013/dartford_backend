@@ -1,3 +1,4 @@
+using System.Reflection;
 using inflan_api.Interfaces;
 using inflan_api.Models;
 using QuestPDF.Fluent;
@@ -15,14 +16,80 @@ public class InvoicePdfService : IInvoicePdfService
 {
     private readonly ILogger<InvoicePdfService> _logger;
 
+    // Theme — sampled from the real Inflan logo/brand palette, not approximated.
+    private const string Navy = "#101828";
+    private const string Slate = "#475467";
+    private const string MutedSlate = "#667085";
+    private const string LineColor = "#EAECF0";
+    private const string Panel = "#F9FAFB";
+    private const string BrandOrange = "#FFB61B";
+    private const string PaidGreen = "#027A48";
+    private const string PaidGreenBg = "#ECFDF3";
+    private const string PendingAmber = "#B54708";
+    private const string PendingAmberBg = "#FFFAEB";
+
+    // Logo bytes never change at runtime — read once, reuse for every invoice.
+    private static readonly object LogoLock = new();
+    private static byte[]? _logoBytes;
+
     public InvoicePdfService(ILogger<InvoicePdfService> logger)
     {
         _logger = logger;
     }
 
+    private byte[]? LoadLogoBytes()
+    {
+        if (_logoBytes != null)
+            return _logoBytes;
+
+        lock (LogoLock)
+        {
+            if (_logoBytes != null)
+                return _logoBytes;
+
+            try
+            {
+                var assembly = Assembly.GetExecutingAssembly();
+                var resourceName = assembly.GetManifestResourceNames()
+                    .FirstOrDefault(n => n.EndsWith("inflan-logo.png", StringComparison.OrdinalIgnoreCase));
+
+                if (resourceName != null)
+                {
+                    using var resourceStream = assembly.GetManifestResourceStream(resourceName);
+                    if (resourceStream != null)
+                    {
+                        using var memoryStream = new MemoryStream();
+                        resourceStream.CopyTo(memoryStream);
+                        _logoBytes = memoryStream.ToArray();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Could not load invoice logo asset; invoice PDFs will render without it");
+            }
+
+            return _logoBytes;
+        }
+    }
+
     public async Task<byte[]> GenerateInvoicePdfAsync(Invoice invoice)
     {
         QuestPDF.Settings.License = LicenseType.Community;
+
+        var logo = LoadLogoBytes();
+        var isPaid = invoice.PaidAt.HasValue;
+        var feePercent = invoice.SubtotalInPence > 0
+            ? Math.Round((decimal)invoice.PlatformFeeInPence / invoice.SubtotalInPence * 100, 1)
+            : 0m;
+
+        // The invoice bills the Brand (who paid) on behalf of the Inflan platform
+        // (which processed the payment and takes the platform fee) — not the
+        // influencer, who is the one being paid out, not the one being billed.
+        var brandName = invoice.Brand?.BrandName ?? invoice.Brand?.Name ?? "Brand";
+        var brandEmail = invoice.Brand?.Email ?? "";
+        var influencerName = invoice.Influencer?.Name ?? invoice.Influencer?.BrandName ?? "Influencer";
+        var campaignName = invoice.Campaign?.ProjectName ?? $"Campaign #{invoice.CampaignId}";
 
         return await Task.Run(() =>
         {
@@ -33,180 +100,200 @@ public class InvoicePdfService : IInvoicePdfService
                 container.Page(page =>
                 {
                     page.Size(PageSizes.A4);
-                    page.Margin(2, Unit.Centimetre);
+                    page.Margin(0);
                     page.PageColor(Colors.White);
-                    page.DefaultTextStyle(x => x.FontSize(10).FontColor(Colors.Black));
+                    page.DefaultTextStyle(x => x.FontFamily("Helvetica").FontSize(10).FontColor(Navy));
 
-                    // Header
-                    page.Header().Element(ComposeHeader);
-
-                    // Content
-                    page.Content().PaddingVertical(0.5f, Unit.Centimetre).Element(c => ComposeContent(c, invoice));
-
-                    // Footer
-                    page.Footer().Element(ComposeFooter);
+                    page.Header().Element(c => ComposeHeader(c, logo, invoice.InvoiceNumber));
+                    page.Content().Element(c => ComposeContent(
+                        c, invoice, brandName, brandEmail, influencerName, campaignName, isPaid, feePercent));
+                    page.Footer().Element(c => ComposeFooter(c, invoice.InvoiceNumber));
                 });
-            })
-            .GeneratePdf(stream);
+            }).GeneratePdf(stream);
 
             return stream.ToArray();
         });
     }
 
-    private void ComposeHeader(IContainer container)
+    private static void ComposeHeader(IContainer container, byte[]? logo, string invoiceNumber)
     {
-        container.Row(row =>
+        container.Column(col =>
         {
-            row.RelativeItem().Column(column =>
+            col.Item().Height(5).Background(BrandOrange);
+            col.Item().PaddingHorizontal(2.2f, Unit.Centimetre).PaddingTop(1.4f, Unit.Centimetre).Row(row =>
             {
-                column.Item().Text("INVOICE")
-                    .FontSize(28).Bold().FontColor("#3B71FE");
+                row.RelativeItem().Height(34).Element(logoContainer =>
+                {
+                    if (logo != null)
+                        logoContainer.Image(logo).FitHeight();
+                    else
+                        logoContainer.AlignLeft().Text("Inflan").FontSize(18).Bold().FontColor(Navy);
+                });
 
-                column.Item().Text("Inflan Platform")
-                    .FontSize(12).FontColor(Colors.Grey.Darken2);
-            });
-
-            row.ConstantItem(120).AlignRight().Column(column =>
-            {
-                column.Item().AlignRight().Text("Inflan")
-                    .FontSize(16).Bold().FontColor("#3B71FE");
-                column.Item().AlignRight().Text("influencer marketing platform")
-                    .FontSize(8).FontColor(Colors.Grey.Medium);
+                row.RelativeItem().AlignRight().Column(c =>
+                {
+                    c.Item().Text("INVOICE").FontSize(22).Bold().FontColor(Navy).LetterSpacing(0.05f);
+                    c.Item().PaddingTop(4).Text(invoiceNumber).FontSize(10).FontColor(MutedSlate);
+                });
             });
         });
     }
 
-    private void ComposeContent(IContainer container, Invoice invoice)
+    private static void ComposeContent(
+        IContainer container,
+        Invoice invoice,
+        string brandName,
+        string brandEmail,
+        string influencerName,
+        string campaignName,
+        bool isPaid,
+        decimal feePercent)
     {
-        container.Column(column =>
+        container.PaddingHorizontal(2.2f, Unit.Centimetre).PaddingTop(1f, Unit.Centimetre).Column(col =>
         {
-            column.Spacing(15);
+            col.Item().LineHorizontal(1).LineColor(LineColor);
 
-            // Invoice Details Row
-            column.Item().Row(row =>
+            // Billed by / Billed to / Issue date + status
+            col.Item().PaddingTop(20).Row(row =>
             {
-                row.RelativeItem().Column(col =>
+                row.Spacing(16);
+
+                row.RelativeItem(1.1f).Column(c =>
                 {
-                    col.Item().Text("Invoice Number").Bold().FontColor(Colors.Grey.Darken2);
-                    col.Item().Text(invoice.InvoiceNumber).FontSize(12);
+                    c.Item().Text("Billed by").FontSize(8.5f).Bold().FontColor(MutedSlate).LetterSpacing(0.03f);
+                    c.Item().PaddingTop(6).Text("Inflan Platform").FontSize(11).Bold().FontColor(Navy);
+                    c.Item().PaddingTop(2).Text("support@inflan.com").FontSize(9.5f).FontColor(Slate);
+                    c.Item().Text("www.inflan.com").FontSize(9.5f).FontColor(Slate);
                 });
 
-                row.RelativeItem().AlignRight().Column(col =>
+                row.RelativeItem(1.1f).Column(c =>
                 {
-                    col.Item().AlignRight().Text("Invoice Date").Bold().FontColor(Colors.Grey.Darken2);
-                    col.Item().AlignRight().Text(invoice.IssuedAt.ToString("dd MMM yyyy")).FontSize(12);
+                    c.Item().Text("Billed to").FontSize(8.5f).Bold().FontColor(MutedSlate).LetterSpacing(0.03f);
+                    c.Item().PaddingTop(6).Text(brandName).FontSize(11).Bold().FontColor(Navy);
+                    if (!string.IsNullOrWhiteSpace(brandEmail))
+                        c.Item().PaddingTop(2).Text(brandEmail).FontSize(9.5f).FontColor(Slate);
+                });
+
+                row.RelativeItem(1f).Column(c =>
+                {
+                    c.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Issue date").FontSize(8.5f).FontColor(MutedSlate);
+                        r.RelativeItem().AlignRight().Text(invoice.IssuedAt.ToString("dd MMM yyyy")).FontSize(9.5f).FontColor(Navy);
+                    });
+                    c.Item().PaddingTop(8).Row(r =>
+                    {
+                        r.RelativeItem().Text("Status").FontSize(8.5f).FontColor(MutedSlate);
+                        r.RelativeItem().AlignRight().Element(e =>
+                        {
+                            e.Background(isPaid ? PaidGreenBg : PendingAmberBg)
+                             .PaddingVertical(2).PaddingHorizontal(8)
+                             .Text(isPaid ? "PAID" : "PENDING")
+                             .FontSize(8).Bold().FontColor(isPaid ? PaidGreen : PendingAmber);
+                        });
+                    });
                 });
             });
 
-            // Divider
-            column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
-
-            // From / To Section
-            column.Item().Row(row =>
+            // Campaign details panel
+            col.Item().PaddingTop(22).Background(Panel).Padding(14).Row(r =>
             {
-                row.RelativeItem().Column(col =>
+                r.RelativeItem().Column(cc =>
                 {
-                    col.Item().Text("From").Bold().FontColor("#3B71FE");
-                    col.Item().PaddingTop(5).Text(invoice.Brand?.BrandName ?? invoice.Brand?.Name ?? "Brand").Bold();
-                    col.Item().Text(invoice.Brand?.Email ?? "");
+                    cc.Item().Text("Campaign").FontSize(8.5f).FontColor(MutedSlate);
+                    cc.Item().PaddingTop(2).Text(campaignName).FontSize(10).Bold().FontColor(Navy);
                 });
-
-                row.RelativeItem().AlignRight().Column(col =>
+                r.RelativeItem().Column(cc =>
                 {
-                    col.Item().AlignRight().Text("To").Bold().FontColor("#3B71FE");
-                    col.Item().AlignRight().PaddingTop(5).Text(invoice.Influencer?.Name ?? "Influencer").Bold();
-                    col.Item().AlignRight().Text(invoice.Influencer?.Email ?? "");
-                });
-            });
-
-            // Campaign Details
-            column.Item().PaddingTop(10).Background("#F9FAFB").Padding(15).Column(campaignCol =>
-            {
-                campaignCol.Item().Text("Campaign Details").Bold().FontColor("#3B71FE");
-                campaignCol.Item().PaddingTop(8).Row(r =>
-                {
-                    r.RelativeItem().Text("Campaign:").FontColor(Colors.Grey.Darken2);
-                    r.RelativeItem().AlignRight().Text(invoice.Campaign?.ProjectName ?? $"Campaign #{invoice.CampaignId}").Bold();
+                    cc.Item().Text("Influencer").FontSize(8.5f).FontColor(MutedSlate);
+                    cc.Item().PaddingTop(2).Text(influencerName).FontSize(10).Bold().FontColor(Navy);
                 });
                 if (invoice.Milestone != null)
                 {
-                    campaignCol.Item().PaddingTop(5).Row(r =>
+                    r.RelativeItem().Column(cc =>
                     {
-                        r.RelativeItem().Text("Milestone:").FontColor(Colors.Grey.Darken2);
-                        r.RelativeItem().AlignRight().Text($"Milestone {invoice.Milestone.MilestoneNumber}").Bold();
+                        cc.Item().Text("Milestone").FontSize(8.5f).FontColor(MutedSlate);
+                        cc.Item().PaddingTop(2).Text($"Milestone {invoice.Milestone.MilestoneNumber}").FontSize(10).Bold().FontColor(Navy);
                     });
                 }
             });
 
-            // Amount Breakdown Table
-            column.Item().PaddingTop(10).Table(table =>
+            // Line items
+            var hasFee = invoice.PlatformFeeInPence > 0;
+            col.Item().PaddingTop(22).Table(table =>
             {
-                table.ColumnsDefinition(columns =>
+                table.ColumnsDefinition(c =>
                 {
-                    columns.RelativeColumn(3);
-                    columns.RelativeColumn(1);
+                    c.RelativeColumn(4);
+                    c.RelativeColumn(1.3f);
                 });
 
-                // Header
-                table.Header(header =>
+                table.Header(h =>
                 {
-                    header.Cell().Background("#3B71FE").Padding(8).Text("Description").FontColor(Colors.White).Bold();
-                    header.Cell().Background("#3B71FE").Padding(8).AlignRight().Text("Amount").FontColor(Colors.White).Bold();
+                    h.Cell().BorderBottom(1.3f).BorderColor(Navy).PaddingBottom(8)
+                        .Text("DESCRIPTION").FontSize(8.5f).Bold().FontColor(Navy).LetterSpacing(0.03f);
+                    h.Cell().BorderBottom(1.3f).BorderColor(Navy).PaddingBottom(8).AlignRight()
+                        .Text("AMOUNT").FontSize(8.5f).Bold().FontColor(Navy).LetterSpacing(0.03f);
                 });
 
-                // Rows
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                    .Text("Campaign Payment");
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                    .AlignRight().Text(FormatAmount(invoice.SubtotalInPence, invoice.Currency));
+                var description = invoice.Milestone != null
+                    ? $"{campaignName} — Milestone {invoice.Milestone.MilestoneNumber} payment to {influencerName}"
+                    : $"{campaignName} — payment to {influencerName}";
 
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                    .Text("Platform Fee (2%)");
-                table.Cell().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).Padding(8)
-                    .AlignRight().Text(FormatAmount(invoice.PlatformFeeInPence, invoice.Currency));
+                table.Cell().BorderBottom(1).BorderColor(LineColor).PaddingVertical(12)
+                    .Text(description).FontSize(10).FontColor(Navy);
+                table.Cell().BorderBottom(1).BorderColor(LineColor).PaddingVertical(12).AlignRight()
+                    .Text(FormatAmount(invoice.SubtotalInPence, invoice.Currency)).FontSize(10).FontColor(Navy);
 
-                // Total
-                table.Cell().Background("#F9FAFB").Padding(8).Text("Total").Bold().FontSize(12);
-                table.Cell().Background("#F9FAFB").Padding(8).AlignRight()
-                    .Text(FormatAmount(invoice.TotalAmountInPence, invoice.Currency)).Bold().FontSize(12).FontColor("#3B71FE");
+                if (hasFee)
+                {
+                    table.Cell().BorderBottom(1).BorderColor(LineColor).PaddingVertical(12)
+                        .Text($"Platform fee ({feePercent:0.#}%)").FontSize(10).FontColor(Slate);
+                    table.Cell().BorderBottom(1).BorderColor(LineColor).PaddingVertical(12).AlignRight()
+                        .Text(FormatAmount(invoice.PlatformFeeInPence, invoice.Currency)).FontSize(10).FontColor(Slate);
+                }
             });
 
-            // Payment Status
-            column.Item().PaddingTop(15).Row(row =>
+            // Total
+            col.Item().PaddingTop(4).Row(row =>
             {
-                row.RelativeItem();
-                row.ConstantItem(150).Background(invoice.PaidAt.HasValue ? "#ECFDF3" : "#FFFAEB")
-                    .Padding(10).AlignCenter().Text(invoice.PaidAt.HasValue ? "PAID" : "PENDING")
-                    .Bold().FontColor(invoice.PaidAt.HasValue ? "#027A48" : "#B54708");
+                row.RelativeItem(2f);
+                row.RelativeItem(2f).Background(Navy).Padding(14).Row(r =>
+                {
+                    r.AutoItem().AlignMiddle().Text(isPaid ? "Total paid" : "Total due").FontSize(10).FontColor(Colors.White);
+                    r.RelativeItem().AlignRight().Text(FormatAmount(invoice.TotalAmountInPence, invoice.Currency)).FontSize(13).Bold().FontColor(Colors.White);
+                });
             });
 
-            if (invoice.PaidAt.HasValue)
+            if (isPaid)
             {
-                column.Item().AlignRight().Text($"Paid on: {invoice.PaidAt.Value:dd MMM yyyy}")
-                    .FontSize(9).FontColor(Colors.Grey.Darken1);
+                col.Item().PaddingTop(8).AlignRight()
+                    .Text($"Paid on {invoice.PaidAt!.Value:dd MMM yyyy}").FontSize(9).FontColor(MutedSlate);
             }
 
-            // Notes Section
-            column.Item().PaddingTop(20).Column(notesCol =>
-            {
-                notesCol.Item().Text("Notes").Bold().FontColor(Colors.Grey.Darken2);
-                notesCol.Item().PaddingTop(5).Text("Thank you for your business. This invoice was generated automatically by the Inflan platform.")
-                    .FontSize(9).FontColor(Colors.Grey.Medium);
-                notesCol.Item().PaddingTop(3).Text("For any queries, please contact support@inflan.com")
-                    .FontSize(9).FontColor(Colors.Grey.Medium);
-            });
+            // Footer notes
+            col.Item().PaddingTop(32).LineHorizontal(1).LineColor(LineColor);
+            col.Item().PaddingTop(14).Text("This invoice was generated automatically by Inflan and reflects a payment processed through the platform on behalf of the campaign above.")
+                .FontSize(8.5f).FontColor(MutedSlate);
+            col.Item().PaddingTop(4).Text("Questions about this invoice? Email support@inflan.com.")
+                .FontSize(8.5f).FontColor(MutedSlate);
         });
     }
 
-    private void ComposeFooter(IContainer container)
+    private static void ComposeFooter(IContainer container, string invoiceNumber)
     {
-        container.AlignCenter().Column(column =>
+        container.Column(col =>
         {
-            column.Item().LineHorizontal(1).LineColor(Colors.Grey.Lighten2);
-            column.Item().PaddingTop(10).Text("Inflan - Influencer Marketing Platform")
-                .FontSize(9).FontColor(Colors.Grey.Medium);
-            column.Item().Text("www.inflan.com | support@inflan.com")
-                .FontSize(8).FontColor(Colors.Grey.Medium);
+            col.Item().PaddingHorizontal(2.2f, Unit.Centimetre).PaddingBottom(10).Row(row =>
+            {
+                row.RelativeItem().Text("Inflan Platform · www.inflan.com").FontSize(8).FontColor(MutedSlate);
+                row.RelativeItem().AlignRight().Text(text =>
+                {
+                    text.Span("Invoice ").FontSize(8).FontColor(MutedSlate);
+                    text.Span(invoiceNumber).FontSize(8).FontColor(MutedSlate);
+                });
+            });
+            col.Item().Height(5).Background(Navy);
         });
     }
 

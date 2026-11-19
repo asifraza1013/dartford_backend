@@ -2,6 +2,7 @@ using System.Security.Claims;
 using inflan_api.Attributes;
 using inflan_api.Interfaces;
 using inflan_api.Models;
+using inflan_api.Services.Payment;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
@@ -16,13 +17,23 @@ namespace inflan_api.Controllers
         private readonly IUserService _userService;
         private readonly IInfluencerService _influencerService;
         private readonly IPlanService _planService;
+        private readonly IMilestoneService _milestoneService;
+        private readonly IInvoicePdfService _invoicePdfService;
 
-        public CampaignController(ICampaignService campaignService, IUserService userService, IInfluencerService influencerService, IPlanService planService)
+        public CampaignController(
+            ICampaignService campaignService,
+            IUserService userService,
+            IInfluencerService influencerService,
+            IPlanService planService,
+            IMilestoneService milestoneService,
+            IInvoicePdfService invoicePdfService)
         {
             _campaignService = campaignService;
             _userService = userService;
             _influencerService = influencerService;
             _planService = planService;
+            _milestoneService = milestoneService;
+            _invoicePdfService = invoicePdfService;
         }
 
         [HttpGet("getAllCampaigns")]
@@ -651,6 +662,55 @@ namespace inflan_api.Controllers
 
             var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
             return File(fileBytes, "application/pdf", $"signed_contract_{campaignId}.pdf");
+        }
+
+        /// <summary>
+        /// Full campaign invoice/statement: every milestone, paid or pending, with a
+        /// running total. Brand-only, and only once the campaign has an actual payment
+        /// history to report (Active or Completed).
+        /// </summary>
+        [HttpGet("{campaignId}/invoice/download")]
+        [Authorize]
+        public async Task<IActionResult> DownloadCampaignInvoice(int campaignId)
+        {
+            var campaign = await _campaignService.GetCampaignById(campaignId);
+
+            if (campaign == null)
+                return StatusCode(404, new {
+                    message = "Campaign not found",
+                    code = "CAMPAIGN_NOT_FOUND"
+                });
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+            if (userIdClaim == null)
+                return StatusCode(401, new {
+                    message = "Unauthorized: Please login again",
+                    code = "INVALID_TOKEN"
+                });
+
+            int userId = int.Parse(userIdClaim.Value);
+
+            // Brand-only: this is a billing document for the party being charged.
+            if (campaign.BrandId != userId)
+                return StatusCode(403, new {
+                    message = "You are not authorized to download this campaign's invoice",
+                    code = "UNAUTHORIZED_ACCESS"
+                });
+
+            // CampaignStatus: ... AWAITING_PAYMENT=5, ACTIVE=6, COMPLETED=7 ...
+            if (campaign.CampaignStatus != 6 && campaign.CampaignStatus != 7)
+                return StatusCode(400, new {
+                    message = "This campaign's invoice is available once the campaign is active.",
+                    code = "CAMPAIGN_NOT_ACTIVE"
+                });
+
+            var brand = await _userService.GetUserById(campaign.BrandId);
+            var influencer = await _userService.GetUserById(campaign.InfluencerId);
+            var milestones = await _milestoneService.GetCampaignMilestonesAsync(campaignId);
+
+            var pdfBytes = await _invoicePdfService.GenerateCampaignInvoicePdfAsync(campaign, brand, influencer, milestones);
+
+            return File(pdfBytes, "application/pdf", $"campaign-{campaignId}-invoice.pdf");
         }
     }
 
